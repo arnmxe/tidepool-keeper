@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0d2033">
+<title>Tidepool Keeper</title>
+<style>
+  /* ============ BASE ============ */
+  :root{
+    --ink:#14313d; --panel:rgba(252,250,241,.88); --panel-solid:#fbf7ec;
+    --line:rgba(20,49,61,.14); --teal:#0f7d8c; --coral:#ff8a5c; --amber:#f4b942;
+  }
+  html,body{margin:0;padding:0;overflow:hidden;background:#0d2033;}
+  body{
+    font-family:ui-rounded,'Hiragino Maru Gothic ProN','Segoe UI',system-ui,-apple-system,sans-serif;
+    color:var(--ink); -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    position:fixed;inset:0;
+  }
+  #cv{position:fixed;inset:0;display:block;}
+  #vignette{position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(120% 95% at 50% 42%, transparent 58%, rgba(8,22,36,.30) 100%);}
+  .icon{display:inline-flex;align-items:center;justify-content:center;line-height:0;}
+  .icon svg{width:1em;height:1em;}
+
+  /* ============ HUD FRAME ============ */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10;}
+  #hud .chip,#hud .panel,#hud button,#hud .nudge,#hud .sp,#dock,#log,#panelToggles{pointer-events:auto;}
+
+  #topbar{position:fixed;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;
+    align-items:flex-start;gap:8px;flex-wrap:wrap;}
+  .tb-group{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    border:1px solid var(--line);border-radius:999px;padding:6px 11px;
+    font-size:12.5px;font-weight:700;box-shadow:0 2px 10px rgba(10,30,45,.12);white-space:nowrap;}
+  .chip .icon{font-size:14px;color:var(--teal);}
+  .icon-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);
+    background:var(--panel);backdrop-filter:blur(8px);cursor:pointer;display:inline-flex;
+    align-items:center;justify-content:center;font-size:16px;color:var(--ink);
+    box-shadow:0 2px 10px rgba(10,30,45,.12);transition:transform .12s;touch-action:manipulation;}
+  .icon-btn:active{transform:scale(.92);}
+  #balanceBar{width:64px;height:8px;border-radius:99px;background:rgba(20,49,61,.12);overflow:hidden;}
+  #balanceFill{display:block;height:100%;width:80%;border-radius:99px;background:#3fae6a;transition:width .4s,background .4s;}
+
+  /* ============ SIDE PANELS ============ */
+  .panel{position:fixed;top:60px;width:172px;background:var(--panel);backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:16px;
+    padding:10px 12px;box-shadow:0 4px 18px rgba(10,30,45,.14);}
+  #statsPanel{left:8px;}
+  #lifePanel{right:8px;}
+  .panel h3{margin:0 0 8px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.55;font-weight:800;}
+  .panel .hint{font-size:10px;opacity:.55;margin-top:7px;line-height:1.3;}
+
+  .stat{margin-bottom:9px;}
+  .stat:last-child{margin-bottom:0;}
+  .stat-head{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;margin-bottom:3px;}
+  .stat-head .icon{font-size:13px;color:var(--teal);}
+  .stat-val{margin-left:auto;font-variant-numeric:tabular-nums;opacity:.8;}
+  .bar{position:relative;height:9px;border-radius:99px;background:rgba(20,49,61,.10);overflow:hidden;}
+  .bar .range{position:absolute;top:0;bottom:0;background:rgba(46,170,95,.30);border-radius:99px;}
+  .bar .fill{position:absolute;left:0;top:0;bottom:0;border-radius:99px;transition:width .3s;}
+  .stat.warn .stat-val{color:#d94f3d;font-weight:800;}
+  .stat.warn .fill{animation:warnPulse 1s ease-in-out infinite;}
+  @keyframes warnPulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.5);}}
+
+  .sp{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:10px;font-size:12px;
+    font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:background .15s;}
+  .sp:hover{background:rgba(20,49,61,.05);}
+  .sp.sel{border-color:var(--teal);background:rgba(15,125,140,.08);}
+  .sp .icon{font-size:15px;}
+  .sp-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sp .trend{font-size:11px;display:inline-flex;}
+  .sp .trend.up{color:#3fae6a;}.sp .trend.down{color:#d94f3d;}.sp .trend.flat{color:#9aa5ab;}
+  .sp-count{font-variant-numeric:tabular-nums;min-width:16px;text-align:right;}
+  .sp .dot{width:8px;height:8px;border-radius:50%;background:#3fae6a;flex:none;}
+  .sp .dot.amber{background:var(--amber);}.sp .dot.red{background:#d94f3d;}
+
+  #panelToggles{display:none;}
+
+  /* ============ LOG ============ */
+  #log{position:fixed;left:10px;bottom:12px;max-width:230px;display:flex;flex-direction:column-reverse;gap:5px;}
+  .msg{background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--line);
+    border-radius:11px;padding:5px 10px;font-size:11.5px;font-weight:600;line-height:1.35;
+    box-shadow:0 2px 8px rgba(10,30,45,.12);opacity:1;transition:opacity .8s;animation:msgIn .3s ease-out;}
+  .msg.fade{opacity:0;}
+  @keyframes msgIn{from{transform:translateY(8px);opacity:0;}to{transform:none;opacity:1;}}
+
+  /* ============ NUDGE DOCK ============ */
+  #dock{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
+    display:flex;flex-direction:column;align-items:center;gap:6px;max-width:96vw;}
+  #energyWrap{display:flex;align-items:center;gap:7px;width:100%;min-width:300px;
+    background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--line);
+    border-radius:999px;padding:5px 12px;box-shadow:0 2px 10px rgba(10,30,45,.12);}
+  #energyWrap .icon{font-size:13px;color:var(--amber);}
+  #energyBar{flex:1;height:8px;border-radius:99px;background:rgba(20,49,61,.10);overflow:hidden;}
+  #energyFill{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ffd36b,#f4a23f);transition:width .2s;}
+  #energyVal{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;min-width:24px;text-align:right;}
+  #nudges{display:flex;gap:8px;overflow-x:auto;max-width:96vw;padding:2px;}
+  .nudge{position:relative;flex:none;width:94px;padding:8px 4px 7px;border-radius:15px;
+    border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(10px);
+    box-shadow:0 3px 12px rgba(10,30,45,.14);cursor:pointer;font-family:inherit;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;gap:2px;overflow:hidden;
+    transition:transform .12s;touch-action:manipulation;}
+  .nudge:active{transform:scale(.94);}
+  .nudge .cd{position:absolute;inset:0;background:rgba(20,49,61,.18);transform-origin:bottom;
+    transform:scaleY(0);pointer-events:none;border-radius:15px;}
+  .nudge .icon{font-size:21px;height:23px;color:var(--teal);}
+  .n-name{font-size:11px;font-weight:800;}
+  .n-cost{font-size:10px;font-weight:700;opacity:.7;display:flex;align-items:center;gap:2px;}
+  .n-cost .icon{font-size:10px;color:var(--amber);height:auto;}
+  .n-cd{position:absolute;top:4px;right:5px;font-size:10px;font-weight:800;color:#fff;
+    background:rgba(20,49,61,.55);padding:1px 6px;border-radius:8px;display:none;}
+  .nudge.cooling .n-cd{display:block;}
+  .nudge.disabled{opacity:.48;}
+  .nudge.disabled .icon{color:#8a969c;}
+
+  /* ============ OVERLAY CARDS ============ */
+  #overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(9,24,38,.48);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:50;padding:14px;}
+  #overlay.show{display:flex;}
+  #card{width:min(440px,94vw);max-height:88vh;overflow-y:auto;background:linear-gradient(180deg,#fffdf6,#f6efdf);
+    border-radius:22px;padding:24px 26px;text-align:center;box-shadow:0 18px 60px rgba(5,20,35,.45);
+    animation:cardIn .3s cubic-bezier(.2,1.4,.4,1);}
+  @keyframes cardIn{from{transform:translateY(18px) scale(.96);opacity:0;}to{transform:none;opacity:1;}}
+  #card .card-icon{font-size:42px;color:var(--teal);display:inline-flex;margin-bottom:4px;}
+  #card h1{margin:4px 0 10px;font-size:23px;letter-spacing:.01em;}
+  #card p{font-size:14px;line-height:1.55;margin:8px 0;color:#2c4a57;}
+  #card .rule-box{background:rgba(255,138,92,.13);border:1.5px solid rgba(255,138,92,.5);
+    border-radius:14px;padding:10px 14px;font-size:13.5px;font-weight:700;line-height:1.45;margin:12px 0;}
+  #card .mini-list{text-align:left;font-size:13px;line-height:1.5;margin:10px auto;display:inline-block;}
+  #card .mini-list div{display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;}
+  #card .mini-list .icon{color:var(--teal);font-size:15px;margin-top:2px;flex:none;}
+  .btn{display:inline-block;border:none;cursor:pointer;font-family:inherit;font-weight:800;
+    border-radius:999px;padding:12px 28px;font-size:15px;margin:6px 4px 0;transition:transform .12s;
+    touch-action:manipulation;}
+  .btn:active{transform:scale(.95);}
+  .btn.primary{background:linear-gradient(180deg,#ff9a6b,#f2763f);color:#fff;box-shadow:0 4px 14px rgba(242,118,63,.4);}
+  .btn.ghost{background:rgba(20,49,61,.08);color:var(--ink);}
+  .score-table{margin:12px auto 4px;font-size:13.5px;min-width:240px;}
+  .score-table .row{display:flex;justify-content:space-between;padding:4px 10px;border-bottom:1px dashed rgba(20,49,61,.12);}
+  .score-table .row b{font-variant-numeric:tabular-nums;}
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width:860px){
+    .panel{width:150px;top:54px;}
+    .nudge{width:78px;}
+    #log{max-width:180px;bottom:112px;}
+  }
+  @media (max-width:640px){
+    .panel{display:none;top:52px;width:158px;z-index:20;}
+    .panel.open{display:block;}
+    #panelToggles{display:flex;position:fixed;top:52px;left:8px;gap:6px;flex-direction:column;}
+    #panelToggles button{border:1px solid var(--line);background:var(--panel);border-radius:999px;
+      padding:6px 12px;font-family:inherit;font-size:11px;font-weight:800;color:var(--ink);
+      box-shadow:0 2px 8px rgba(10,30,45,.12);cursor:pointer;}
+    #balanceBar{width:44px;}
+    .chip{padding:5px 9px;font-size:11.5px;}
+    .nudge{width:70px;padding:7px 3px 6px;}
+    .n-name{font-size:10px;}
+    #log{bottom:118px;max-width:150px;}
+  }
+  @media (max-height:500px){
+    .panel{top:48px;max-height:44vh;overflow-y:auto;}
+    .nudge{padding:5px 3px;}
+    .nudge .icon{font-size:17px;height:18px;}
+  }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="topbar">
+    <div class="tb-group">
+      <div class="chip" id="dayChip">Day 1/10</div>
+      <div class="chip"><span class="icon" id="clockIcon"></span><span id="clockText">06:00</span></div>
+      <div class="chip"><span class="icon" id="wxIcon"></span><span id="wxText">Sunny</span></div>
+      <div class="chip"><span class="icon" id="tideIcon"></span><span id="tideText">Rising</span></div>
+    </div>
+    <div class="tb-group">
+      <div class="chip" title="Balance: water stats in range + biodiversity">
+        <span class="icon" id="balIcon"></span><span>Balance</span>
+        <span id="balanceBar"><i id="balanceFill"></i></span><b id="balanceVal">–</b>
+      </div>
+      <button class="icon-btn" id="muteBtn" title="Sound on/off"></button>
+      <button class="icon-btn" id="pauseBtn" title="Pause"></button>
+    </div>
+  </div>
+
+  <div class="panel" id="statsPanel"><h3>Water</h3></div>
+  <div class="panel" id="lifePanel"><h3>Life</h3><div id="spList"></div><div class="hint">Tap a species to target the cull nudge.</div></div>
+
+  <div id="panelToggles">
+    <button id="statsToggle">Water</button>
+    <button id="lifeToggle">Life</button>
+  </div>
+
+  <div id="log"></div>
+
+  <div id="dock">
+    <div id="energyWrap"><span class="icon" id="energyIcon"></span><span id="energyBar"><i id="energyFill"></i></span><span id="energyVal">60</span></div>
+    <div id="nudges"></div>
+  </div>
+</div>
+
+<div id="overlay"><div id="card"></div></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   TIDEPOOL KEEPER — a tiny ecosystem you can only nudge, never control.
+   Sections: CONFIG · UTILS · STATE · AUDIO · SIMULATION · CREATURES ·
+             NUDGES · EVENTS · RENDERING · UI · MAIN LOOP · INIT
+   ===================================================================== */
+
+/* ==================== 1. CONFIG (tuning knobs live here) ==================== */
+const CFG = {
+  // --- time ---
+  dayLengthSec: 120,        // real seconds per in-game day
+  totalDays: 10,            // survive this many days to win
+  simDt: 1/60,              // fixed simulation timestep (seconds)
+  // --- tide ---
+  tidesPerDay: 2,           // high tides per day
+  lowTide: 0.34,            // water depth fraction at low tide
+  highTide: 1.0,            // ...and at high tide
+  // --- temperature ---
+  baseTemp: 18,             // night-time resting temperature
+  sunHeat: 14,              // extra target temp at full light
+  tempMixK: 0.9,            // how fast temp chases its target (per hour, ÷ volume)
+  dayHeat: 0.35,            // difficulty ramp: extra degrees per day
+  heatwaveBonus: 7,         // event: extra target temp
+  // --- salinity ---
+  oceanSal: 55,             // what the ocean mixes toward
+  evapRate: 1.5,            // salinity gained per hour at full light (÷ volume)
+  rainDilute: 3.0,          // salinity lost per hour per unit of rain
+  salMixK: 0.5,             // drift toward ocean salinity
+  // --- oxygen ---
+  oxyBase: 70,              // resting oxygen the water mixes toward
+  oxyMixK: 0.32,
+  oxyFromAlgae: 0.055,      // O2 per algae point per hour at full light
+  oxyFromWeed: 1.15,        // O2 per seaweed patch per hour at full light
+  oxyCreatureMul: 1.0,      // global multiplier on creature O2 consumption
+  oxyAlgaeNight: 0.05,      // O2 eaten by algae at night (per algae point/hr)
+  // --- algae & plankton ---
+  algaeGrowth: 3.2,         // peak algae growth per hour
+  planktonGrowth: 2.6,      // peak plankton growth per hour
+  // --- creatures ---
+  snailSpeed: 0.020, snailGraze: 0.30, snailFoodValue: 6, snailMetab: 0.8, snailRepro: 0.22, capSnail: 14,
+  crabSpeed: 0.10, crabHuntP: 0.30, crabMetab: 1.0, crabRepro: 0.12, capCrab: 8,
+  anemoneFilter: 0.35, anemoneFoodValue: 5, anemoneMetab: 0.45, anemoneRepro: 0.15, capAnemone: 9,
+  fishSpeed: 0.22, fishEat: 1.2, fishMetab: 1.5, capFish: 5, strandTide: 0.44,
+  washoutP: 0.06,           // per-creature per-hour washout chance in storms
+  birdCooldown: 5,          // game-hours between seabird strikes
+  // --- player nudges ---
+  energyMax: 100, energyRegen: 1.6, energyStart: 60,
+  shadeHours: 6, shadeLightMul: 0.45,
+  freshAmount: 12, freshCool: 4,
+  rockVolume: 0.18, rockShelter: 0.8, weedShelter: 0.9, weedLife: 30,
+  costShade: 25, costWater: 15, costRocks: 30, costWeed: 20, costCull: 10,
+  cdShade: 26, cdWater: 10, cdRocks: 20, cdWeed: 18, cdCull: 8,
+};
+
+// species' preferred water ranges (outside these, stress accumulates)
+const PREF = {
+  snail:   { t0:14, t1:30, s0:40, s1:70, o:25 },
+  crab:    { t0:15, t1:29, s0:44, s1:69, o:30 },
+  anemone: { t0:15, t1:26, s0:46, s1:64, o:38 },
+  fish:    { t0:16, t1:28, s0:45, s1:66, o:42 },
+};
+
+/* ==================== 2. UTILS ==================== */
+const TAU = Math.PI*2;
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const chance=p=>Math.random()<p;
+function smoothstep(a,b,x){ const t=clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); }
+function rangeScore(v,h0,h1,s0,s1){ // 1 inside healthy band, linear falloff to 0 at soft edges
+  if(v>=h0&&v<=h1) return 1;
+  if(v<h0) return v<=s0?0:(v-s0)/(h0-s0);
+  return v>=s1?0:(s1-v)/(s1-h1);
+}
+const mixRGB=(c1,c2,t)=>[lerp(c1[0],c2[0],t)|0,lerp(c1[1],c2[1],t)|0,lerp(c1[2],c2[2],t)|0];
+const rgbStr=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a===undefined?1:a})`;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* ==================== 3. STATE ==================== */
+const S = {
+  started:false, paused:false, over:false, cardOpen:false,
+  day:1, dayT:0, hour:6, totalHours:0, animT:0,
+  tideLevel:0.5, tideDir:1, lastPulseCycle:-1,
+  weather:'sunny', weatherT:8, rainRate:0, cloud:0.15, rainAcc:0,
+  light:0, darkness:1, sunElev:0,
+  temp:24, sal:55, oxy:70, algae:30, plankton:40, detritus:0,
+  tempPulse:0, freshMix:0,
+  shadeT:0, rocks:0, weed:[], energy:CFG.energyStart,
+  cds:{shade:0,water:0,rocks:0,weed:0,cull:0}, cullTarget:null,
+  snails:[], crabs:[], anemones:[], fish:[],
+  mods:{}, eventId:'calm', fishVisited:false, departLogged:false,
+  bird:{active:false,t:0,struck:false,cool:2},
+  flash:0, balance:80, balSum:0,
+  volume:1, shelter:0, lowTideEff:CFG.lowTide,
+  popsPrev:{}, trendT:0,
+  stats:{deaths:0,births:0,culled:0,nudges:0},
+};
+const G = { w:0,h:0,horizonY:0,shelfY:0,poolL:0,poolR:0,poolW:0,rimY:0,bottomY:0,depth:0,u:8 };
+const P = [];             // particles
+let clouds=[], starsArr=[], speckles=[], pebbles=[], plankDots=[];
+
+/* ==================== 4. AUDIO (all synthesized, Web Audio) ==================== */
+const AudioSys = {
+  ctx:null, master:null, started:false, muted:false,
+  oceanGain:null, rainGain:null, windGain:null, lfoGain:null,
+  start(){
+    if(this.started){ if(this.ctx&&this.ctx.state==='suspended') this.ctx.resume(); return; }
+    const AC = window.AudioContext||window.webkitAudioContext; if(!AC) return;
+    this.ctx=new AC(); this.started=true;
+    this.master=this.ctx.createGain(); this.master.gain.value=this.muted?0:0.6;
+    this.master.connect(this.ctx.destination);
+    const len=2*this.ctx.sampleRate, buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const mk=()=>{ const s=this.ctx.createBufferSource(); s.buffer=buf; s.loop=true;
+      s.playbackRate.value=0.85+Math.random()*0.3; s.start(); return s; };
+    // ocean = low rumble of waves
+    const of=this.ctx.createBiquadFilter(); of.type='lowpass'; of.frequency.value=380;
+    this.oceanGain=this.ctx.createGain(); this.oceanGain.gain.value=0;
+    mk().connect(of); of.connect(this.oceanGain); this.oceanGain.connect(this.master);
+    // slow swell LFO on the wave gain
+    const lfo=this.ctx.createOscillator(); lfo.frequency.value=0.09;
+    this.lfoGain=this.ctx.createGain(); this.lfoGain.gain.value=0.04;
+    lfo.connect(this.lfoGain); this.lfoGain.connect(this.oceanGain.gain); lfo.start();
+    // rain = band-passed hiss
+    const rf=this.ctx.createBiquadFilter(); rf.type='bandpass'; rf.frequency.value=2400; rf.Q.value=0.6;
+    this.rainGain=this.ctx.createGain(); this.rainGain.gain.value=0;
+    mk().connect(rf); rf.connect(this.rainGain); this.rainGain.connect(this.master);
+    // wind = deep filtered noise
+    const wf=this.ctx.createBiquadFilter(); wf.type='lowpass'; wf.frequency.value=240;
+    this.windGain=this.ctx.createGain(); this.windGain.gain.value=0;
+    mk().connect(wf); wf.connect(this.windGain); this.windGain.connect(this.master);
+  },
+  update(){
+    if(!this.started) return; const t=this.ctx.currentTime;
+    const oceanT = S.paused ? 0.03 : 0.09 + S.tideLevel*0.10 + (S.weather==='storm'?0.12:0);
+    this.oceanGain.gain.setTargetAtTime(oceanT,t,0.4);
+    this.rainGain.gain.setTargetAtTime(S.paused?0:S.rainRate*0.085,t,0.5);
+    this.windGain.gain.setTargetAtTime(S.weather==='storm'?0.13:(S.weather==='rain'?0.045:0.008),t,0.8);
+    this.lfoGain.gain.setTargetAtTime(0.03+S.tideLevel*0.05,t,1);
+  },
+  blip(f=440,dur=0.12,type='sine',g=0.07){
+    if(!this.started||this.muted) return; const t=this.ctx.currentTime;
+    const o=this.ctx.createOscillator(), gn=this.ctx.createGain();
+    o.type=type; o.frequency.value=f;
+    gn.gain.setValueAtTime(0.0001,t); gn.gain.linearRampToValueAtTime(g,t+0.012);
+    gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(gn); gn.connect(this.master); o.start(t); o.stop(t+dur+0.03);
+  },
+  thunder(){
+    if(!this.started||this.muted) return; const t=this.ctx.currentTime;
+    const s=this.ctx.createBufferSource(); s.buffer=this._nb||(this._nb=(()=>{const b=this.ctx.createBuffer(1,this.ctx.sampleRate*1.6,this.ctx.sampleRate),dd=b.getChannelData(0);for(let i=0;i<dd.length;i++)dd[i]=(Math.random()*2-1)*(1-i/dd.length);return b;})());
+    const f=this.ctx.createBiquadFilter(); f.type='lowpass';
+    f.frequency.setValueAtTime(320,t); f.frequency.exponentialRampToValueAtTime(60,t+1.3);
+    const g=this.ctx.createGain(); g.gain.setValueAtTime(0.4,t); g.gain.exponentialRampToValueAtTime(0.001,t+1.5);
+    s.connect(f); f.connect(g); g.connect(this.master); s.start(t);
+  },
+  setMuted(m){ this.muted=m; if(this.master) this.master.gain.setTargetAtTime(m?0:0.6,this.ctx.currentTime,0.08); }
+};
+
+/* ==================== 5. SIMULATION ==================== */
+function step(dt){
+  const dh = dt * 24 / CFG.dayLengthSec;       // game-hours elapsed this step
+  S.dayT += dh; S.totalHours += dh;
+  if(S.dayT >= 24){ S.dayT -= 24; dayRollover(); if(S.over) return; }
+  S.hour = (6 + S.dayT) % 24;
+
+  // real-time resources
+  for(const k in S.cds) S.cds[k]=Math.max(0,S.cds[k]-dt);
+  S.energy=Math.min(CFG.energyMax,S.energy+CFG.energyRegen*dt);
+  if(S.shadeT>0) S.shadeT-=dh;
+  for(let i=S.weed.length-1;i>=0;i--){ S.weed[i].life-=dh; if(S.weed[i].life<=0){ S.weed.splice(i,1); recomputeShelter(); addLog('A seaweed patch withered away.'); } }
+
+  updateTide();
+  updateWeather(dh);
+  updateLight();
+  updateWater(dh,dt);
+  updatePlankton(dh);
+  updateSnails(dh); updateCrabs(dh); updateAnemones(dh); updateFish(dh);
+  updateHazards(dh,dt);
+  updateBalance(dh);
+
+  S.trendT+=dt;
+  if(S.trendT>6){ S.trendT=0; snapshotPops(); }
+
+  // total ecosystem collapse (grace period: first half-day)
+  if(S.totalHours>12 && S.snails.length+S.crabs.length+S.anemones.length===0){
+    endGame(false,'Every larger creature has died out. Plankton alone cannot hold the pool together.');
+  }
+}
+
+function updateTide(){
+  const period=24/CFG.tidesPerDay, cyc=S.totalHours/period, ph=cyc*TAU;
+  const raw=0.5-0.5*Math.cos(ph);            // 0 at low, 1 at high
+  S.tideDir=Math.sin(ph)>=0?1:-1;
+  S.tideLevel=lerp(S.lowTideEff,CFG.highTide,raw);
+  const cycN=Math.floor(cyc);
+  if(raw>0.985 && S.tideDir>0 && S.lastPulseCycle!==cycN){ S.lastPulseCycle=cycN; highTidePulse(); }
+}
+
+function highTidePulse(){
+  // ocean mixing pulls stats toward sea norms
+  S.oxy += (72-S.oxy)*0.45;
+  S.sal += (CFG.oceanSal-S.sal)*0.55;
+  S.temp += (22-S.temp)*0.22;
+  S.plankton = Math.min(100, S.plankton + 14*(S.mods.plankton||1));
+  S.algae *= 0.90;
+  if(S.mods.oil){ S.mods.oilStrength*=0.55; if(S.mods.oilStrength<0.15){ S.mods.oil=false; addLog('The oil sheen finally washed out to sea.'); } }
+  // fish ride the tide in
+  const healthy = S.oxy>45 && S.temp>16 && S.temp<29 && S.sal>44 && S.sal<66;
+  let n=0;
+  if(healthy){ if(chance(0.75)) n=1; if(S.plankton>35 && chance(0.45)) n++; }
+  n=Math.min(n, CFG.capFish-S.fish.length);
+  for(let i=0;i<n;i++) spawnFish();
+  if(n>0){ S.fishVisited=true; addLog(n>1?'Small fish rode the tide in!':'A small fish rode the tide in!');
+    for(let i=0;i<10;i++) spawnParticle('splash', G.poolR-G.poolW*0.1+rnd(-8,8), surfaceY()+rnd(-2,2)); }
+  else if(!healthy && chance(0.5)) addLog('The tide turned, but the water put visitors off.');
+  addLog('High tide: fresh seawater mixes through the pool.');
+  AudioSys.blip(180,0.5,'sine',0.05);
+}
+
+const WEATHER_NEXT = { // weighted transition table
+  sunny:  [['sunny',0.45],['cloudy',0.35],['rain',0.15],['storm',0.05]],
+  cloudy: [['sunny',0.30],['cloudy',0.28],['rain',0.30],['storm',0.12]],
+  rain:   [['sunny',0.22],['cloudy',0.40],['rain',0.22],['storm',0.16]],
+  storm:  [['sunny',0.15],['cloudy',0.42],['rain',0.38],['storm',0.05]],
+};
+const WEATHER_INFO = {
+  sunny:{label:'Sunny',icon:'sun',light:1.00,rain:0,cloud:0.15,dur:[4,9]},
+  cloudy:{label:'Cloudy',icon:'cloud',light:0.62,rain:0,cloud:0.6,dur:[3,7]},
+  rain:{label:'Rain',icon:'rain',light:0.42,rain:1,cloud:0.85,dur:[2,5]},
+  storm:{label:'Storm',icon:'bolt',light:0.28,rain:2.4,cloud:1.0,dur:[1.5,3.5]},
+};
+function updateWeather(dh){
+  S.weatherT-=dh;
+  if(S.weatherT<=0){
+    const table=WEATHER_NEXT[S.weather];
+    const stormBonus=(S.day-1)*0.012;
+    let total=0; const weighted=table.map(([k,w])=>{ let ww=w+(k==='storm'?stormBonus:0); if(S.mods.surge&&k==='storm')ww+=0.5; total+=ww; return [k,ww]; });
+    let r=Math.random()*total, next='sunny';
+    for(const [k,w] of weighted){ r-=w; if(r<=0){ next=k; break; } }
+    if(S.mods.surge && next==='sunny') next='storm';
+    setWeather(next);
+  }
+  const info=WEATHER_INFO[S.weather];
+  S.rainRate += (info.rain-S.rainRate)*Math.min(1,1.5*dh);
+  S.cloud    += (info.cloud-S.cloud)*Math.min(1,0.8*dh);
+  if(S.weather==='storm' && chance(1.2*dh)){
+    S.flash=0.75;
+    setTimeout(()=>AudioSys.thunder(), 350+Math.random()*900);
+  }
+  S.flash=Math.max(0,S.flash-dh*6);
+}
+function setWeather(w){
+  S.weather=w; const d=WEATHER_INFO[w].dur; S.weatherT=rnd(d[0],d[1]);
+  if(w==='storm') addLog('A storm rolls in off the sea.');
+  else if(w==='rain') addLog('Rain begins to fall — the pool freshens.');
+}
+function forceWeather(w,hours){ S.weather=w; S.weatherT=hours; }
+
+function updateLight(){
+  const h=S.hour; let elev=0;
+  if(h>6&&h<18) elev=Math.sin((h-6)/12*Math.PI);
+  S.sunElev=elev;
+  const wl=WEATHER_INFO[S.weather].light;
+  const shade=S.shadeT>0?CFG.shadeLightMul:1;
+  const oil=S.mods.oil?(1-0.3*(S.mods.oilStrength||1)):1;
+  S.light=Math.pow(Math.max(0,elev),0.85)*wl*shade*oil;
+  S.darkness=1-Math.min(1,elev*1.6);
+}
+
+function updateWater(dh,dt){
+  const vol=S.volume, oil=S.mods.oil?(S.mods.oilStrength||1):0;
+  // temperature chases a sun-driven target; deeper water = slower swings
+  let target=CFG.baseTemp + CFG.sunHeat*S.light + (S.mods.heat||0) - (S.weather==='storm'?2.5:0) + CFG.dayHeat*(S.day-1);
+  target+=S.tempPulse; S.tempPulse*=Math.exp(-dh/1.5);
+  S.temp += (target-S.temp)*(1-Math.exp(-CFG.tempMixK/vol*dh));
+  S.temp=clamp(S.temp,4,42);
+  // salinity: evaporation concentrates, rain & fresh splashes dilute, tides re-mix
+  const exposure=1.15-0.35*S.tideLevel;
+  S.sal += CFG.evapRate*S.light*exposure*(S.shadeT>0?0.3:1)*(S.mods.evap||1)*dh/vol;
+  S.sal -= CFG.rainDilute*S.rainRate*dh/vol;
+  if(S.freshMix>0.01){ const a=Math.min(S.freshMix,S.freshMix*dt*1.8+dt*0.5); S.sal-=a; S.freshMix-=a; }
+  const km=CFG.salMixK*(S.tideLevel>0.8?1.6:0.35)/vol;
+  S.sal += (CFG.oceanSal-S.sal)*(1-Math.exp(-km*dh));
+  S.sal=clamp(S.sal,18,90);
+  // oxygen: algae & seaweed make it by day, everything breathes it away
+  const prod=S.algae*CFG.oxyFromAlgae*S.light*(1-0.5*oil)
+           + S.weed.length*CFG.oxyFromWeed*S.light
+           + S.rainRate*1.1 + (S.weather==='storm'?1.6:0);
+  const cons=(S.snails.length*0.06+S.crabs.length*0.09+S.anemones.length*0.05+S.fish.length*0.14)*CFG.oxyCreatureMul
+           + S.algae*CFG.oxyAlgaeNight*(1-Math.min(1,S.light*1.4));
+  S.oxy += (prod-cons)*dh;
+  const ko=CFG.oxyMixK*(S.tideLevel>0.8?1.7:0.5);
+  S.oxy += (CFG.oxyBase-S.oxy)*(1-Math.exp(-ko*dh));
+  if(oil>0) S.oxy += (32-S.oxy)*(1-Math.exp(-0.3*oil*dh));   // slick suffocates gas exchange
+  S.oxy=clamp(S.oxy,0,100);
+  // algae: blooms with light + warmth + nutrients
+  const warmth=Math.exp(-Math.pow(S.temp-25,2)/128);
+  S.algae += CFG.algaeGrowth*S.light*warmth*(S.mods.algae||1)*(1-0.55*oil)*(1+S.detritus*0.04)*(1-S.algae/105)*dh;
+  S.algae -= 0.15*(1-S.light)*dh;
+  S.algae=clamp(S.algae,0,100);
+  S.detritus=Math.max(0,S.detritus-0.8*dh);
+}
+
+function updatePlankton(dh){
+  const calm=S.weather==='storm'?0.35:1;
+  const warmth=Math.exp(-Math.pow(S.temp-24,2)/200);
+  const oil=S.mods.oil?(S.mods.oilStrength||1):0;
+  S.plankton += CFG.planktonGrowth*S.light*calm*warmth*(S.mods.plankton||1)*(1-0.5*oil)*(1+S.detritus*0.05)*(1-S.plankton/110)*dh;
+  if(S.weather==='storm') S.plankton-=2.5*dh;   // churned apart
+  S.plankton=clamp(S.plankton,0,100);
+}
+
+function updateBalance(dh){
+  const sTemp=rangeScore(S.temp,18,28,14,32);
+  const sSal =rangeScore(S.sal ,45,65,38,72);
+  const sOxy =rangeScore(S.oxy ,50,90,32,97);
+  const a=S.algae;
+  const sAlg = a<2?0.15 : a<10?(a-2)/8 : a<=55?1 : a>=85?0 : 1-(a-55)/30;
+  const stat=(sTemp+sSal+sOxy+sAlg)/4;
+  const bio=countAliveSpecies(true)/4;   // macro species only
+  S.balance=Math.round(100*(0.55*stat+0.45*bio));
+  S.balSum+=S.balance*dh;
+}
+function countAliveSpecies(macroOnly){
+  let n=0;
+  if(!macroOnly && S.plankton>5) n++;
+  if(S.snails.length)n++; if(S.crabs.length)n++; if(S.anemones.length)n++;
+  if(S.fish.length||S.fishVisited)n++;
+  return n;
+}
+
+/* ==================== 6. CREATURES ==================== */
+function spawnSnail(fx){ S.snails.push({fx:fx??rnd(0.1,0.9),fh:0,fhT:0,dir:chance(0.5)?-1:1,energy:rnd(50,70),stress:0,rc:rnd(4,9),moveT:0,rest:false,seed:rnd(0,10)}); }
+function spawnCrab(fx){ S.crabs.push({fx:fx??rnd(0.15,0.85),fh:0.015,dir:chance(0.5)?-1:1,energy:rnd(55,75),stress:0,rc:rnd(6,12),moveT:0,burst:0,seed:rnd(0,10),moving:false}); }
+function spawnAnemone(fx){ S.anemones.push({fx:fx??rnd(0.15,0.85),fh:rnd(0.02,0.12),energy:rnd(55,75),stress:0,rc:rnd(6,12),open:1,seed:rnd(0,10),hue:rnd(-12,12)}); }
+function spawnFish(){ const hues=[18,205,45,280]; S.fish.push({fx:0.94,fh:0,fhT:rnd(0.15,0.5),dir:-1,energy:75,stress:0,seed:rnd(0,10),hue:hues[Math.floor(Math.random()*hues.length)],stranded:false,zig:rnd(0,10)}); }
+
+function envStress(c,p,dh){
+  let sev=0;
+  if(S.temp<p.t0)sev+=(p.t0-S.temp)/8; else if(S.temp>p.t1)sev+=(S.temp-p.t1)/8;
+  if(S.sal<p.s0)sev+=(p.s0-S.sal)/14; else if(S.sal>p.s1)sev+=(S.sal-p.s1)/14;
+  if(S.oxy<p.o)sev+=(p.o-S.oxy)/25;
+  if(sev>0) c.stress=Math.min(3,c.stress+sev*0.9*dh);
+  else c.stress=Math.max(0,c.stress-1.3*dh);
+}
+function killed(c){ // nutrient feedback + FX
+  S.detritus=Math.min(25,S.detritus+2.5);
+  S.algae=Math.min(100,S.algae+1.2);
+  S.stats.deaths++;
+  const p=posOf(c); spawnParticle('poof',p.x,p.y);
+  if(chance(0.5)) AudioSys.blip(150,0.25,'triangle',0.05);
+}
+function born(list,spawnFn,fx,parent){
+  parent.energy-=35; parent.rc=4;
+  spawnFn(clamp(fx+rnd(-0.05,0.05),0.04,0.96));
+  list[list.length-1].rc=8; list[list.length-1].energy=40;
+  S.stats.births++;
+  const p=posOf(list[list.length-1]); spawnParticle('sparkle',p.x,p.y);
+}
+
+function updateSnails(dh){
+  for(let i=S.snails.length-1;i>=0;i--){
+    const c=S.snails[i];
+    c.moveT-=dh;
+    if(c.moveT<=0){ c.moveT=rnd(1,3.5); c.dir=chance(0.5)?-1:1; if(chance(0.3))c.rest=!c.rest;
+      c.fhT = chance(0.4)?rnd(0.05,0.3):0; }
+    if(!c.rest){ c.fx+=c.dir*CFG.snailSpeed*dh;
+      if(c.fx<0.04){c.fx=0.04;c.dir=1;} if(c.fx>0.96){c.fx=0.96;c.dir=-1;} }
+    c.fh += (Math.min(c.fhT,S.tideLevel+0.1)-c.fh)*Math.min(1,dh*0.5);
+    if(S.algae>1){ const ate=Math.min(CFG.snailGraze*dh,S.algae); S.algae-=ate; c.energy+=ate*CFG.snailFoodValue; }
+    else if(S.weed.length>0){ c.energy+=0.5*dh*Math.min(2,S.weed.length); }
+    c.energy-=CFG.snailMetab*dh;
+    envStress(c,PREF.snail,dh);
+    if(c.fh>S.tideLevel+0.02 && S.temp>29 && S.light>0.4) c.stress+=0.3*dh; // baked in the sun
+    if(c.energy<=0 || c.stress>2.2 || (c.stress>0.6 && chance((c.stress-0.6)*0.7*dh))){ killed(c); S.snails.splice(i,1); continue; }
+    c.energy=clamp(c.energy,0,100); c.rc-=dh;
+    if(c.energy>78&&c.rc<=0&&S.snails.length<CFG.capSnail&&S.algae>18&&S.temp>16&&S.temp<30&&chance(CFG.snailRepro*dh)){
+      born(S.snails,spawnSnail,c.fx,c); if(chance(0.4)) addLog('Tiny snails are hatching among the rocks.');
+    }
+  }
+}
+
+function updateCrabs(dh){
+  for(let i=S.crabs.length-1;i>=0;i--){
+    const c=S.crabs[i];
+    c.moveT-=dh;
+    if(c.moveT<=0){ c.moveT=rnd(0.6,2.2); c.burst=rnd(0.2,0.7); c.dir=chance(0.5)?-1:1; }
+    c.moving=c.burst>0; if(c.burst>0){ c.burst-=dh; c.fx+=c.dir*CFG.crabSpeed*dh;
+      if(c.fx<0.04){c.fx=0.04;c.dir=1;} if(c.fx>0.96){c.fx=0.96;c.dir=-1;} }
+    // hunt a snail now and then, otherwise scavenge detritus
+    if(c.energy<72 && S.snails.length>0 && chance(CFG.crabHuntP*dh)){
+      const vi=Math.floor(Math.random()*S.snails.length);
+      const v=S.snails[vi]; const p=posOf(v); spawnParticle('poof',p.x,p.y);
+      S.snails.splice(vi,1); c.energy+=30; S.detritus=Math.min(25,S.detritus+1);
+      if(chance(0.35)) addLog('A hermit crab cracked open a snail.');
+    }
+    if(S.detritus>0.2){ const eat=Math.min(0.35*dh,S.detritus); S.detritus-=eat; c.energy+=eat*8; }
+    c.energy-=CFG.crabMetab*dh;
+    envStress(c,PREF.crab,dh);
+    if(c.energy<=0 || c.stress>2.2 || (c.stress>0.6 && chance((c.stress-0.6)*0.7*dh))){ killed(c); S.crabs.splice(i,1); continue; }
+    c.energy=clamp(c.energy,0,100); c.rc-=dh;
+    if(c.energy>82&&c.rc<=0&&S.crabs.length<CFG.capCrab&&chance(CFG.crabRepro*dh)){
+      born(S.crabs,spawnCrab,c.fx,c); if(chance(0.4)) addLog('A hermit crab clutch hatched.');
+    }
+  }
+}
+
+function updateAnemones(dh){
+  for(let i=S.anemones.length-1;i>=0;i--){
+    const c=S.anemones[i];
+    const exposed=c.fh>S.tideLevel;
+    c.open += ((exposed?0:1)-c.open)*Math.min(1,dh*2);
+    if(!exposed && S.plankton>2){ const f=Math.min(CFG.anemoneFilter*dh,S.plankton); S.plankton-=f; c.energy+=f*CFG.anemoneFoodValue; }
+    if(exposed){ c.energy-=0.15*dh; if(S.light>0.5&&S.temp>27) c.stress+=0.35*dh; }
+    c.energy-=CFG.anemoneMetab*dh;
+    envStress(c,PREF.anemone,dh);   // the temperature-sensitive flower of the pool
+    if(c.energy<=0 || c.stress>2.2 || (c.stress>0.6 && chance((c.stress-0.6)*0.7*dh))){ killed(c); S.anemones.splice(i,1); continue; }
+    c.energy=clamp(c.energy,0,100); c.rc-=dh;
+    if(c.energy>80&&c.rc<=0&&S.anemones.length<CFG.capAnemone&&chance(CFG.anemoneRepro*dh)){
+      born(S.anemones,spawnAnemone,c.fx,c); if(chance(0.4)) addLog('An anemone budded a tiny clone.');
+    }
+  }
+}
+
+function updateFish(dh){
+  for(let i=S.fish.length-1;i>=0;i--){
+    const c=S.fish[i];
+    if(c.stranded){
+      c.fh=0.015; c.energy-=6.5*dh; c.stress+=0.5*dh;
+      if(S.tideLevel>CFG.strandTide+0.08){ c.stranded=false; addLog('The rising tide rescued a stranded fish!'); }
+    } else {
+      c.zig+=dh*3;
+      c.fx+=c.dir*CFG.fishSpeed*dh;
+      if(c.fx<0.06){c.fx=0.06;c.dir=1;} if(c.fx>0.94){c.fx=0.94;c.dir=-1;}
+      if(chance(0.5*dh)) c.dir*=-1;
+      const hi=Math.max(0.05,S.tideLevel-0.08);
+      if(chance(0.6*dh)) c.fhT=rnd(0.06,hi);
+      c.fhT=Math.min(c.fhT,hi);
+      c.fh += (c.fhT+Math.sin(c.zig+c.seed)*0.02-c.fh)*Math.min(1,dh*2);
+      c.fh=clamp(c.fh,0.03,hi);
+      if(S.plankton>4){ const e=Math.min(CFG.fishEat*dh,S.plankton); S.plankton-=e; c.energy+=e*2.2; }
+      c.energy-=CFG.fishMetab*dh;
+      // most fish slip back to sea on the ebb...
+      if(S.tideDir<0 && S.tideLevel<0.55 && chance(0.8*dh)){
+        S.fish.splice(i,1);
+        if(!S.departLogged){ S.departLogged=true; addLog('Small fish slipped out with the ebbing tide.'); }
+        continue;
+      }
+      // ...the unlucky ones get stranded
+      if(S.tideLevel<CFG.strandTide){ c.stranded=true; addLog('A fish is stranded in the shallows!'); AudioSys.blip(520,0.2,'square',0.05); }
+    }
+    envStress(c,PREF.fish,dh);
+    if(c.energy<=0 || c.stress>2.2 || (c.stress>0.6 && chance((c.stress-0.6)*0.7*dh))){ killed(c); S.fish.splice(i,1); continue; }
+    c.energy=clamp(c.energy,0,100);
+  }
+}
+
+function updateHazards(dh,dt){
+  // storm surf tears creatures from the rocks
+  if(S.weather==='storm' && S.tideLevel>0.62){
+    const p=CFG.washoutP*(1-S.shelter)*dh;
+    const wash=(list,name)=>{
+      for(let i=list.length-1;i>=0;i--) if(chance(p)){
+        const c=list[i]; const pp=posOf(c); spawnParticle('splash',pp.x,pp.y);
+        list.splice(i,1); S.stats.deaths++;
+        if(chance(0.5)) addLog(`The storm surf tore a ${name} from the pool.`);
+      }
+    };
+    wash(S.snails,'snail'); wash(S.crabs,'crab'); wash(S.anemones,'anemone');
+  }
+  // a visiting seabird hunts the exposed pool at low tide
+  if(S.mods.bird){
+    S.bird.cool-=dh;
+    if(!S.bird.active && S.tideLevel<0.45 && S.bird.cool<=0 && S.light>0.12) S.bird.active=true;
+  }
+  if(S.bird.active){
+    S.bird.t+=dt/2.6;
+    if(S.bird.t>0.5 && !S.bird.struck){ S.bird.struck=true; birdStrike(); }
+    if(S.bird.t>=1){ S.bird.active=false; S.bird.struck=false; S.bird.t=0; S.bird.cool=CFG.birdCooldown; }
+  }
+}
+function birdStrike(){
+  const victims=[];
+  S.snails.forEach(c=>victims.push({list:S.snails,c}));
+  S.crabs.forEach(c=>victims.push({list:S.crabs,c}));
+  S.fish.filter(c=>c.stranded).forEach(c=>victims.push({list:S.fish,c}));
+  let take=Math.max(0,Math.round((1-S.shelter)*2.4));
+  take=Math.min(take,victims.length);
+  if(take===0){ addLog('The seabird wheeled away, finding nothing exposed.'); return; }
+  for(let i=0;i<take;i++){
+    const vi=Math.floor(Math.random()*victims.length);
+    const v=victims.splice(vi,1)[0];
+    const idx=v.list.indexOf(v.c); if(idx<0) continue;
+    const p=posOf(v.c); spawnParticle('poof',p.x,p.y); v.list.splice(idx,1); S.stats.deaths++;
+  }
+  addLog(take>1?`The seabird snatched ${take} creatures from the shallows!`:'The seabird snatched a creature from the shallows!');
+  AudioSys.blip(660,0.15,'square',0.05);
+}
+
+/* ==================== 7. NUDGES ==================== */
+function recomputeShelter(){
+  S.volume=1+CFG.rockVolume*S.rocks;
+  S.shelter=1-Math.pow(CFG.rockShelter,S.rocks)*Math.pow(CFG.weedShelter,S.weed.length);
+  S.lowTideEff=CFG.lowTide+0.03*S.rocks;
+}
+function nudgeShade(){ S.shadeT=CFG.shadeHours; addLog('Shade falls over the pool. It will cool slowly.');
+  AudioSys.blip(420,0.12,'sine',0.06); }
+function nudgeWater(){ S.freshMix+=CFG.freshAmount; S.tempPulse-=CFG.freshCool;
+  const sy=surfaceY();
+  for(let i=0;i<24;i++) spawnParticle('drop',G.poolL+Math.random()*G.poolW,sy-rnd(30,90));
+  for(let i=0;i<3;i++) spawnParticle('ripple',G.poolL+Math.random()*G.poolW,sy);
+  addLog('Fresh water splashes in, diluting the salt.'); AudioSys.blip(340,0.2,'sine',0.07); }
+function nudgeRocks(){ S.rocks++; recomputeShelter();
+  const r=ROCK_SPOTS[S.rocks-1]; const p={x:G.poolL+r.fx*G.poolW,y:floorBumpY(r.fx)};
+  for(let i=0;i<8;i++) spawnParticle('dust',p.x+rnd(-10,10),p.y-rnd(0,14));
+  addLog('You shift a boulder. The pool runs deeper and more sheltered.');
+  AudioSys.blip(120,0.25,'triangle',0.09); }
+function nudgeWeed(){ S.weed.push({fx:rnd(0.2,0.8),life:CFG.weedLife,seed:rnd(0,10)}); recomputeShelter();
+  addLog('Seaweed settles in — oxygen and cover, for a while.'); AudioSys.blip(500,0.12,'sine',0.06); }
+function nudgeCull(){
+  const map={snail:S.snails,crab:S.crabs,anemone:S.anemones,fish:S.fish};
+  let key=S.cullTarget;
+  if(!key||!map[key]||map[key].length===0){ key=null; let best=0;
+    for(const k in map) if(map[k].length>best){best=map[k].length;key=k;} }
+  if(!key||map[key].length===0){ addLog('Nothing to cull right now.'); return false; }
+  const list=map[key], n=Math.max(1,Math.min(4,Math.ceil(list.length*0.3)));
+  for(let i=0;i<n;i++){ const idx=Math.floor(Math.random()*list.length);
+    const c=list[idx]; const p=posOf(c); spawnParticle('poof',p.x,p.y); list.splice(idx,1); }
+  S.stats.culled+=n;
+  addLog(`Culled ${n} ${SPECIES_META[key].plural} — the rest may breathe easier.`);
+  AudioSys.blip(220,0.15,'triangle',0.08);
+}
+const NUDGES=[
+  {key:'shade',name:'Shade',icon:'umbrella',cost:CFG.costShade,cd:CFG.cdShade,
+    title:'Shade the pool: less heat & evaporation for 6 hours',act:nudgeShade,
+    can:()=>S.shadeT<=0,block:'The pool is already shaded.'},
+  {key:'water',name:'Fresh water',icon:'drop',cost:CFG.costWater,cd:CFG.cdWater,
+    title:'Splash of fresh water: dilutes salinity, cools a little',act:nudgeWater},
+  {key:'rocks',name:'Move rocks',icon:'rock',cost:CFG.costRocks,cd:CFG.cdRocks,
+    title:'Deepen & shelter the pool (max 3): slower swings, less washout',act:nudgeRocks,
+    can:()=>S.rocks<3,block:'No room left for more boulders.'},
+  {key:'weed',name:'Seaweed',icon:'weed',cost:CFG.costWeed,cd:CFG.cdWeed,
+    title:'Scatter seaweed: daytime oxygen, snail food, hiding cover (max 3)',act:nudgeWeed,
+    can:()=>S.weed.length<3,block:'The pool is full of seaweed.'},
+  {key:'cull',name:'Cull',icon:'net',cost:CFG.costCull,cd:CFG.cdCull,
+    title:'Remove ~30% of the targeted (or largest) species',act:nudgeCull},
+];
+function tryNudge(def){
+  if(S.paused||S.over||!S.started) return;
+  if(S.cds[def.key]>0||S.energy<def.cost) return;
+  if(def.can&&!def.can()){ addLog(def.block); return; }
+  if(def.act()===false) return;
+  S.energy-=def.cost; S.cds[def.key]=def.cd; S.stats.nudges++;
+}
+
+/* ==================== 8. EVENTS (one card per day) ==================== */
+const EVENTS=[
+  {id:'calm',icon:'sparkle',title:'Calm Seas',min:1,weight:d=>d<3?4:1.2,
+    text:'Gentle weather and kind tides. A good day to let the pool settle — or to prepare for what comes next.',
+    apply(){}},
+  {id:'heat',icon:'sun',title:'Heatwave',min:2,weight:d=>0.8+d*0.15,
+    text:'Fierce sun all day. The water will heat and evaporate fast. Shade and fresh water will buy time.',
+    apply(){ S.mods.heat=CFG.heatwaveBonus+S.day*0.25; S.mods.evap=1.8; forceWeather('sunny',10); }},
+  {id:'oil',icon:'oil',title:'Oil Sheen',min:3,weight:d=>0.6+d*0.12,
+    text:'A rainbow slick drifts in with the tide. Light dims and oxygen exchange suffers until high tides wash it away.',
+    apply(){ S.mods.oil=true; S.mods.oilStrength=1; }},
+  {id:'surge',icon:'bolt',title:'Storm Surge',min:3,weight:d=>0.5+d*0.14,
+    text:'A violent squall is on its way. Creatures may be torn from the rocks — boulders and seaweed give shelter.',
+    apply(){ S.mods.surge=true; forceWeather('storm',Math.min(12,7+S.day*0.3)); }},
+  {id:'bird',icon:'bird',title:'A Hungry Visitor',min:2,weight:d=>0.7+d*0.1,
+    text:'A seabird patrols the coast today. Anything left exposed at low tide is on the menu. Cover helps.',
+    apply(){ S.mods.bird=true; S.bird.cool=2; }},
+  {id:'upwell',icon:'upwell',title:'Nutrient Upwelling',min:2,weight:d=>0.9,
+    text:'Cold, rich water floods the pool. Growth will explode today — but beware what a bloom does to the night air.',
+    apply(){ S.mods.algae=1.9; S.mods.plankton=1.6; S.mods.heat=-2; }},
+];
+function pickEvent(){
+  const pool=EVENTS.filter(e=>S.day>=e.min);
+  let total=0; pool.forEach(e=>total+=e.weight(S.day));
+  let r=Math.random()*total;
+  for(const e of pool){ r-=e.weight(S.day); if(r<=0) return e; }
+  return pool[0];
+}
+function dayRollover(){
+  if(S.day>=CFG.totalDays){
+    const alive=countAliveSpecies(false);
+    endGame(alive>=3, alive>=3?'win':'Too few species survived the final night.');
+    return;
+  }
+  S.day++; S.mods={}; S.fishVisited=false; S.departLogged=false; S.bird.cool=2;
+  const e=pickEvent(); S.eventId=e.id;
+  showCard({
+    icon:e.icon, title:`Day ${S.day} — ${e.title}`, body:`<p>${e.text}</p>`,
+    buttons:[{label:'Face the day',primary:true,cb:()=>{ e.apply(); hideCard();
+      addLog(`Day ${S.day}: ${e.title}.`); AudioSys.blip(392,0.14,'sine',0.06); }}]
+  });
+}
+function endGame(win,reason){
+  if(S.over) return;
+  S.over=true; S.paused=true;
+  const harmony=S.totalHours>0?Math.round(S.balSum/S.totalHours):0;
+  const alive=countAliveSpecies(false);
+  if(win){ AudioSys.blip(523,0.2,'sine',0.08); setTimeout(()=>AudioSys.blip(659,0.2,'sine',0.08),180); setTimeout(()=>AudioSys.blip(784,0.4,'sine',0.08),380); }
+  else AudioSys.blip(160,0.7,'triangle',0.09);
+  const rows=[
+    ['Days kept',`${Math.min(S.day,CFG.totalDays)} / ${CFG.totalDays}`],
+    ['Average balance',harmony+'%'],
+    ['Species alive',alive+' / 5'],
+    ['Births',S.stats.births],['Deaths',S.stats.deaths],
+    ['Creatures culled',S.stats.culled],['Nudges used',S.stats.nudges],
+  ].map(r=>`<div class="row"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
+  showCard({
+    icon:win?'sparkle':'cloud',
+    title:win?'The Pool Thrives':'The Pool Fell Silent',
+    body:`<p>${win?`Ten days of careful tending, and the tidepool hums with life. The sea approves.`:(reason||'The ecosystem collapsed.')}</p><div class="score-table">${rows}</div>`,
+    buttons:[{label:'Tend again',primary:true,cb:()=>location.reload()}]
+  });
+}
+
+/* ==================== 9. RENDERING ==================== */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const view={w:0,h:0};
+function resize(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  view.w=window.innerWidth; view.h=window.innerHeight;
+  cv.width=view.w*dpr; cv.height=view.h*dpr;
+  cv.style.width=view.w+'px'; cv.style.height=view.h+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  computeGeom();
+}
+function computeGeom(){
+  const w=view.w,h=view.h;
+  G.w=w; G.h=h;
+  G.horizonY=h*0.44; G.shelfY=h*0.50;
+  G.poolW=Math.min(w*0.92,900);
+  G.poolL=(w-G.poolW)/2; G.poolR=G.poolL+G.poolW;
+  G.rimY=h*0.545; G.bottomY=h*0.90; G.depth=G.bottomY-G.rimY;
+  G.u=G.poolW/100;
+}
+function surfaceY(){ return G.bottomY - S.tideLevel*G.depth; }
+function floorBumpY(fx){ return G.bottomY-(Math.sin(fx*9+1.3)*0.5+Math.sin(fx*23+4)*0.3)*G.depth*0.035; }
+function basinFloorY(fx){
+  const wall=Math.max(smoothstep(0.10,0,fx),smoothstep(0.90,1,fx))*G.depth*0.92;
+  return floorBumpY(fx)-wall;
+}
+function posOf(c){ return { x:G.poolL+c.fx*G.poolW, y:floorBumpY(c.fx)-c.fh*G.depth }; }
+
+// sky colour keyframes through the day
+const SKY=[
+  {t:0.00,top:[10,22,52],mid:[18,34,66],bot:[26,48,82]},
+  {t:0.20,top:[26,38,78],mid:[64,62,104],bot:[150,110,110]},
+  {t:0.25,top:[70,90,140],mid:[238,150,120],bot:[255,214,160]},
+  {t:0.33,top:[110,180,225],mid:[165,220,245],bot:[230,246,252]},
+  {t:0.50,top:[95,175,230],mid:[150,215,245],bot:[235,250,253]},
+  {t:0.68,top:[90,120,175],mid:[240,160,110],bot:[255,205,150]},
+  {t:0.75,top:[40,55,100],mid:[120,90,120],bot:[200,130,110]},
+  {t:0.83,top:[14,26,58],mid:[24,40,74],bot:[34,56,92]},
+  {t:1.00,top:[10,22,52],mid:[18,34,66],bot:[26,48,82]},
+];
+function skyColors(){
+  const t=S.hour/24;
+  let a=SKY[0],b=SKY[1];
+  for(let i=0;i<SKY.length-1;i++) if(t>=SKY[i].t&&t<=SKY[i+1].t){ a=SKY[i];b=SKY[i+1];break; }
+  const f=(t-a.t)/Math.max(0.001,b.t-a.t);
+  let top=mixRGB(a.top,b.top,f),mid=mixRGB(a.mid,b.mid,f),bot=mixRGB(a.bot,b.bot,f);
+  const gray=S.weather==='storm'?[80,88,100]:[110,120,132];
+  const m=S.cloud*0.65;
+  return { top:mixRGB(top,gray,m), mid:mixRGB(mid,gray,m), bot:mixRGB(bot,gray,m) };
+}
+
+function render(){
+  const w=view.w,h=view.h;
+  ctx.clearRect(0,0,w,h);
+  drawSky(w,h);
+  drawSea(w,h);
+  drawShelf(w,h);
+  drawBasin();
+  drawPoolDressing();   // boulders + seaweed (below water)
+  drawWater();
+  drawPlankton();
+  drawCreatures();
+  drawDepthShade();
+  drawSurfaceFX();
+  drawShadeUmbrella();
+  drawParticles();
+  drawBird();
+  if(S.flash>0){ ctx.fillStyle=`rgba(255,255,255,${S.flash*0.55})`; ctx.fillRect(0,0,w,h); }
+  if(S.darkness>0.02){ ctx.fillStyle=`rgba(9,16,44,${S.darkness*0.16})`; ctx.fillRect(0,0,w,h); }
+}
+
+function drawSky(w,h){
+  const c=skyColors();
+  const g=ctx.createLinearGradient(0,0,0,G.horizonY);
+  g.addColorStop(0,rgbStr(c.top)); g.addColorStop(0.7,rgbStr(c.mid)); g.addColorStop(1,rgbStr(c.bot));
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,G.horizonY+1);
+  // stars
+  if(S.darkness>0.25){ ctx.fillStyle='#fff';
+    for(const s of starsArr){ const a=S.darkness*(0.35+0.5*Math.sin(S.animT*1.5+s.ph));
+      if(a<=0.03) continue; ctx.globalAlpha=a*0.9; ctx.beginPath(); ctx.arc(s.x*w,s.y*G.horizonY,s.r,0,TAU); ctx.fill(); }
+    ctx.globalAlpha=1; }
+  // sun
+  if(S.sunElev>0.01){
+    const sx=w*(0.15+0.7*(S.hour-6)/12), sy=G.horizonY-Math.sin((S.hour-6)/12*Math.PI)*h*0.30;
+    const vis=1-S.cloud*0.7;
+    const glow=ctx.createRadialGradient(sx,sy,4,sx,sy,95);
+    glow.addColorStop(0,`rgba(255,240,200,${0.55*vis})`); glow.addColorStop(1,'rgba(255,240,200,0)');
+    ctx.fillStyle=glow; ctx.fillRect(sx-95,sy-95,190,190);
+    ctx.fillStyle=`rgba(255,243,196,${0.95*vis})`; ctx.beginPath(); ctx.arc(sx,sy,24,0,TAU); ctx.fill();
+  }
+  // moon
+  const mh=(S.hour+12)%24;
+  if(mh>6&&mh<18){
+    const mx=w*(0.2+0.6*(mh-6)/12), my=G.horizonY-Math.sin((mh-6)/12*Math.PI)*h*0.26;
+    ctx.fillStyle=`rgba(232,238,248,${0.85*S.darkness})`; ctx.beginPath(); ctx.arc(mx,my,17,0,TAU); ctx.fill();
+    ctx.fillStyle=`rgba(190,200,220,${0.5*S.darkness})`;
+    ctx.beginPath(); ctx.arc(mx-5,my-3,4,0,TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(mx+6,my+5,2.6,0,TAU); ctx.fill();
+  }
+  // clouds
+  for(const cl of clouds){
+    const cy=cl.y*h, cx=cl.x*w, s=cl.s*G.u;
+    const cc=mixRGB([255,255,255],[96,104,118],S.cloud*0.85);
+    ctx.fillStyle=rgbStr(cc,0.82);
+    ctx.beginPath();
+    ctx.ellipse(cx,cy,s*3.2,s*1.15,0,0,TAU);
+    ctx.ellipse(cx-s*2.1,cy+s*0.4,s*2.0,s*0.85,0,0,TAU);
+    ctx.ellipse(cx+s*2.2,cy+s*0.45,s*2.2,s*0.9,0,0,TAU);
+    ctx.fill();
+  }
+}
+function drawSea(w,h){
+  const tideLift=(S.tideLevel-0.5)*7;
+  const y0=G.horizonY-4-tideLift;
+  const g=ctx.createLinearGradient(0,y0,0,G.shelfY+8);
+  const deep=mixRGB([38,110,150],[60,80,100],S.cloud*0.6), lite=mixRGB([110,190,215],[90,110,125],S.cloud*0.6);
+  g.addColorStop(0,rgbStr(lite)); g.addColorStop(1,rgbStr(deep));
+  ctx.fillStyle=g; ctx.fillRect(0,y0,w,G.shelfY-y0+8);
+  // distant headland
+  ctx.fillStyle=rgbStr(mixRGB([96,108,102],[50,58,66],S.darkness*0.7),0.9);
+  ctx.beginPath(); ctx.ellipse(w*0.93,y0+4,w*0.14,26,0,Math.PI,0); ctx.fill();
+  // wave dashes
+  ctx.strokeStyle=`rgba(235,250,255,${0.35+S.rainRate*0.05})`; ctx.lineWidth=1.6; ctx.lineCap='round';
+  for(let r=0;r<3;r++){
+    const wy=y0+8+r*9;
+    for(let x=0;x<w;x+=46){
+      const off=Math.sin(x*0.05+S.animT*(1.1+r*0.3)+r*2)*5;
+      ctx.beginPath(); ctx.moveTo(x+off,wy); ctx.lineTo(x+off+18,wy); ctx.stroke();
+    }
+  }
+  // foam where the sea meets the shelf
+  ctx.fillStyle=`rgba(240,252,255,${0.25+S.tideLevel*0.35})`;
+  for(let x=0;x<w;x+=26){
+    const fy=G.shelfY+2+Math.sin(x*0.09+S.animT*2)*2.5;
+    ctx.beginPath(); ctx.arc(x,fy,1.6+Math.sin(x+S.animT*3)*0.7,0,TAU); ctx.fill();
+  }
+}
+function drawShelf(w,h){
+  const g=ctx.createLinearGradient(0,G.shelfY,0,h);
+  g.addColorStop(0,'#e8c88f'); g.addColorStop(0.5,'#d4ac72'); g.addColorStop(1,'#b98d5a');
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.moveTo(0,G.shelfY+Math.sin(0)*3);
+  for(let x=0;x<=w;x+=40) ctx.lineTo(x,G.shelfY+Math.sin(x*0.01+2)*3.5);
+  ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath(); ctx.fill();
+  // strata
+  ctx.strokeStyle='rgba(120,85,50,0.18)'; ctx.lineWidth=3;
+  for(let r=0;r<2;r++){ ctx.beginPath();
+    for(let x=0;x<=w;x+=40){ const y=G.shelfY+30+r*26+Math.sin(x*0.008+r*3)*4; x===0?ctx.moveTo(x,y):ctx.lineTo(x,y); } ctx.stroke(); }
+  // speckles & pebbles
+  for(const sp of speckles){
+    if(sp.x>G.poolL-10&&sp.x<G.poolR+10&&sp.y>G.rimY-14) continue; // keep the pool rim clean
+    ctx.fillStyle=sp.dark?'rgba(110,80,50,0.25)':'rgba(255,240,210,0.35)';
+    ctx.beginPath(); ctx.arc(sp.x,sp.y,sp.r,0,TAU); ctx.fill();
+  }
+  for(const pb of pebbles){
+    if(pb.x>G.poolL-14&&pb.x<G.poolR+14) continue;
+    ctx.fillStyle=pb.c; ctx.beginPath(); ctx.ellipse(pb.x,pb.y,pb.r,pb.r*0.6,pb.rot,0,TAU); ctx.fill();
+  }
+  // one decorative starfish + shell, untouched by the simulation
+  drawStarfish(view.w*0.12,G.shelfY+34,9,'#e2835f');
+  ctx.strokeStyle='rgba(255,244,220,0.8)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(view.w*0.85,G.shelfY+44,6,Math.PI,0); ctx.stroke();
+  ctx.beginPath(); ctx.arc(view.w*0.85,G.shelfY+44,3,Math.PI,0); ctx.stroke();
+}
+function drawStarfish(x,y,r,color){
+  ctx.fillStyle=color; ctx.beginPath();
+  for(let i=0;i<5;i++){
+    const a=-Math.PI/2+i*TAU/5, a2=a+TAU/10;
+    ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);
+    ctx.lineTo(x+Math.cos(a2)*r*0.45,y+Math.sin(a2)*r*0.45);
+  }
+  ctx.closePath(); ctx.fill();
+}
+function drawBasin(){
+  const {poolL,poolR,poolW,rimY,bottomY,depth}=G;
+  const g=ctx.createLinearGradient(0,rimY,0,bottomY);
+  g.addColorStop(0,'#b98d5e'); g.addColorStop(1,'#8f6a41');
+  ctx.fillStyle=g;
+  ctx.beginPath();
+  ctx.moveTo(poolL,rimY);
+  ctx.quadraticCurveTo(poolL+poolW*0.01,rimY+depth*0.55,poolL+poolW*0.08,bottomY);
+  ctx.lineTo(poolR-poolW*0.08,bottomY);
+  ctx.quadraticCurveTo(poolR-poolW*0.01,rimY+depth*0.55,poolR,rimY);
+  ctx.closePath(); ctx.fill();
+  // sandy floor highlight
+  ctx.strokeStyle='rgba(255,235,200,0.35)'; ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let i=0;i<=30;i++){ const fx=0.08+i*(0.84/30), x=poolL+fx*poolW, y=floorBumpY(fx);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); } ctx.stroke();
+  // rim boulders
+  drawBoulder(poolL-6,rimY+4,3.4,'#8d7d6b');
+  drawBoulder(poolL+18,rimY+8,2.2,'#7a6a58');
+  drawBoulder(poolR+6,rimY+5,3.8,'#857662');
+  drawBoulder(poolR-20,rimY+9,2.4,'#756552');
+}
+function drawBoulder(x,y,s,color){
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.arc(x,y,s*G.u*0.55,0,TAU);
+  ctx.arc(x-s*G.u*0.4,y+s*G.u*0.15,s*G.u*0.35,0,TAU);
+  ctx.arc(x+s*G.u*0.38,y+s*G.u*0.18,s*G.u*0.3,0,TAU);
+  ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.14)';
+  ctx.beginPath(); ctx.ellipse(x-s*G.u*0.1,y-s*G.u*0.22,s*G.u*0.3,s*G.u*0.16,-0.4,0,TAU); ctx.fill();
+}
+const ROCK_SPOTS=[{fx:0.30,s:1.6},{fx:0.62,s:1.9},{fx:0.82,s:1.4}];
+function drawPoolDressing(){
+  // player-placed boulders
+  for(let i=0;i<S.rocks;i++){ const r=ROCK_SPOTS[i];
+    drawBoulder(G.poolL+r.fx*G.poolW,floorBumpY(r.fx)+G.u*0.2,r.s+1.4,i%2?'#7d6f5e':'#8d7d6b'); }
+  // seaweed patches
+  for(const p of S.weed){
+    const x=G.poolL+p.fx*G.poolW, y=floorBumpY(p.fx);
+    const fade=Math.min(1,p.life/5), sway=Math.sin(S.animT*1.2+p.seed*5)*G.u*0.5;
+    ctx.strokeStyle=`rgba(46,110,60,${0.85*fade})`; ctx.lineWidth=G.u*0.28; ctx.lineCap='round';
+    for(let f=0;f<3;f++){
+      const off=(f-1)*G.u*0.5, hh=G.u*(5.5-f*1.1)*fade;
+      ctx.beginPath(); ctx.moveTo(x+off,y);
+      ctx.quadraticCurveTo(x+off+sway*(0.6+f*0.3),y-hh*0.6,x+off+sway,y-hh);
+      ctx.stroke();
+    }
+  }
+}
+function drawWater(){
+  const {poolL,poolW}=G, sy=surfaceY(), a=S.algae/100;
+  const topC=mixRGB([140,215,220],[120,190,120],a), botC=mixRGB([26,94,124],[40,110,70],a);
+  const N=42;
+  ctx.beginPath();
+  for(let i=0;i<=N;i++){ const fx=i/N, x=poolL+fx*poolW;
+    const y=sy+Math.sin(fx*7+S.animT*1.6)*1.8+Math.sin(fx*13-S.animT*2.3)*1.1;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  for(let i=N;i>=0;i--){ const fx=i/N; ctx.lineTo(poolL+fx*poolW,basinFloorY(fx)); }
+  ctx.closePath();
+  const g=ctx.createLinearGradient(0,sy,0,G.bottomY);
+  g.addColorStop(0,rgbStr(topC,0.62)); g.addColorStop(1,rgbStr(botC,0.88));
+  ctx.fillStyle=g; ctx.fill();
+  // god rays on bright days
+  if(S.light>0.5){
+    ctx.fillStyle=`rgba(255,255,230,${0.05*(S.light-0.4)})`;
+    for(let i=0;i<3;i++){
+      const rx=poolL+poolW*(0.25+i*0.22)+Math.sin(S.animT*0.4+i)*8;
+      ctx.beginPath(); ctx.moveTo(rx,sy); ctx.lineTo(rx+poolW*0.06,sy);
+      ctx.lineTo(rx+poolW*0.12,G.bottomY); ctx.lineTo(rx-poolW*0.03,G.bottomY);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+}
+function drawPlankton(){
+  const n=Math.floor(S.plankton/100*plankDots.length);
+  const sy=surfaceY();
+  for(let i=0;i<n;i++){
+    const d=plankDots[i];
+    const fh=Math.min(d.fh+Math.sin(S.animT*0.6+d.ph)*0.03, Math.max(0.04,S.tideLevel-0.04));
+    const x=G.poolL+d.fx*G.poolW+Math.sin(S.animT*0.4+d.ph*2)*4;
+    const y=floorBumpY(d.fx)-fh*G.depth;
+    if(y<sy-2) continue;
+    const a=0.3+0.35*Math.sin(S.animT*2+d.ph);
+    ctx.fillStyle=`rgba(190,250,235,${a})`;
+    ctx.beginPath(); ctx.arc(x,y,d.r,0,TAU); ctx.fill();
+  }
+}
+function drawCreatures(){
+  for(const c of S.anemones) drawAnemone(c);
+  for(const c of S.snails) drawSnail(c);
+  for(const c of S.crabs) drawCrab(c);
+  for(const c of S.fish) drawFish(c);
+}
+function drawSnail(c){
+  const p=posOf(c), u=G.u, bob=Math.sin(S.animT*1.5+c.seed)*u*0.05;
+  ctx.save(); ctx.translate(p.x,p.y+bob); ctx.scale(c.dir,1);
+  ctx.fillStyle='#d9c9a8'; ctx.beginPath(); ctx.ellipse(0,-u*0.28,u*1.05,u*0.34,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#a5713f'; ctx.beginPath(); ctx.arc(-u*0.1,-u*0.78,u*0.62,0,TAU); ctx.fill();
+  ctx.strokeStyle='#7c4f27'; ctx.lineWidth=u*0.12;
+  ctx.beginPath(); ctx.arc(-u*0.1,-u*0.78,u*0.38,0,TAU); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-u*0.1,-u*0.78,u*0.16,0,TAU); ctx.stroke();
+  ctx.strokeStyle='#b7a37e'; ctx.lineWidth=u*0.1;
+  ctx.beginPath(); ctx.moveTo(u*0.7,-u*0.42); ctx.lineTo(u*0.95,-u*0.9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(u*0.85,-u*0.38); ctx.lineTo(u*1.18,-u*0.82); ctx.stroke();
+  ctx.fillStyle='#3a2c1c';
+  ctx.beginPath(); ctx.arc(u*0.95,-u*0.92,u*0.08,0,TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(u*1.18,-u*0.84,u*0.08,0,TAU); ctx.fill();
+  ctx.restore();
+}
+function drawCrab(c){
+  const p=posOf(c), u=G.u;
+  const step=c.moving?Math.sin(S.animT*12+c.seed*7)*u*0.12:0;
+  ctx.save(); ctx.translate(p.x,p.y); ctx.scale(c.dir,1);
+  ctx.strokeStyle='#a34d33'; ctx.lineWidth=u*0.12; ctx.lineCap='round';
+  for(let l=0;l<3;l++){
+    const lx=-u*0.35+l*u*0.3;
+    ctx.beginPath(); ctx.moveTo(lx,-u*0.35); ctx.lineTo(lx-u*0.22+step*(l%2?1:-1),u*0.08); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx,-u*0.35); ctx.lineTo(lx+u*0.22+step*(l%2?-1:1),u*0.08); ctx.stroke();
+  }
+  ctx.fillStyle='#c96a4a'; ctx.beginPath(); ctx.ellipse(0,-u*0.5,u*0.72,u*0.46,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#8a6a4a'; ctx.beginPath(); ctx.arc(-u*0.12,-u*0.95,u*0.55,0,TAU); ctx.fill();
+  ctx.strokeStyle='#63492f'; ctx.lineWidth=u*0.11;
+  ctx.beginPath(); ctx.arc(-u*0.12,-u*0.95,u*0.34,0,TAU); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-u*0.12,-u*0.95,u*0.14,0,TAU); ctx.stroke();
+  ctx.fillStyle='#e2835f';
+  ctx.beginPath(); ctx.arc(u*0.75,-u*0.42,u*0.2,0,TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(u*0.95,-u*0.6,u*0.16,0,TAU); ctx.fill();
+  ctx.strokeStyle='#a34d33'; ctx.lineWidth=u*0.08;
+  ctx.beginPath(); ctx.moveTo(u*0.18,-u*0.85); ctx.lineTo(u*0.22,-u*1.18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(u*0.42,-u*0.85); ctx.lineTo(u*0.48,-u*1.16); ctx.stroke();
+  ctx.fillStyle='#2c1c12';
+  ctx.beginPath(); ctx.arc(u*0.22,-u*1.2,u*0.08,0,TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(u*0.48,-u*1.18,u*0.08,0,TAU); ctx.fill();
+  ctx.restore();
+}
+function drawAnemone(c){
+  const p=posOf(c), u=G.u;
+  const base=mixRGB([198,107,138],[150,70,100],c.stress/3);
+  ctx.save(); ctx.translate(p.x,p.y);
+  const g=ctx.createLinearGradient(0,0,0,-u*1.3);
+  g.addColorStop(0,rgbStr(mixRGB(base,[90,50,70],0.3))); g.addColorStop(1,rgbStr(base));
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.ellipse(0,-u*0.5,u*0.42,u*0.62,0,0,TAU); ctx.fill();
+  if(c.open>0.35){
+    ctx.strokeStyle=`rgba(240,${168+c.hue|0},192,${c.open})`; ctx.lineWidth=u*0.16; ctx.lineCap='round';
+    for(let i=0;i<9;i++){
+      const ang=-Math.PI/2+(i-4)*0.30;
+      const sw=Math.sin(S.animT*1.8+i+c.seed)*0.22;
+      const len=u*(0.95+0.25*Math.sin(S.animT*1.3+i*2+c.seed));
+      ctx.beginPath(); ctx.moveTo(0,-u*1.0);
+      ctx.quadraticCurveTo(Math.cos(ang+sw)*len*0.5,-u*1.0+Math.sin(ang+sw)*len*0.5,
+                           Math.cos(ang+sw)*len,-u*1.0+Math.sin(ang+sw)*len);
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle=rgbStr(mixRGB(base,[120,70,95],0.4));
+    ctx.beginPath(); ctx.arc(0,-u*0.95,u*0.4,Math.PI,0); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawFish(c){
+  const p=posOf(c), u=G.u, len=u*1.6;
+  const wag=Math.sin(S.animT*(c.stranded?13:7)+c.seed*9);
+  ctx.save(); ctx.translate(p.x,p.y);
+  if(c.stranded){ ctx.rotate(-0.5+wag*0.12); ctx.globalAlpha=0.92; }
+  else ctx.scale(c.dir,1);
+  ctx.fillStyle=`hsl(${c.hue} 60% 58%)`;
+  ctx.beginPath(); ctx.ellipse(0,0,len*0.55,len*0.22,0,0,TAU); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-len*0.48,0);
+  ctx.lineTo(-len*0.85,-len*0.2+wag*len*0.09); ctx.lineTo(-len*0.85,len*0.2+wag*len*0.09);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle=`hsl(${c.hue} 60% 48%)`;
+  ctx.beginPath(); ctx.moveTo(-len*0.05,-len*0.2); ctx.lineTo(len*0.15,-len*0.42); ctx.lineTo(len*0.22,-len*0.18); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#1c2a33'; ctx.beginPath(); ctx.arc(len*0.3,-len*0.05,len*0.06,0,TAU); ctx.fill();
+  ctx.strokeStyle=`hsl(${c.hue} 50% 42%)`; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.arc(len*0.12,0,len*0.14,-0.9,0.9); ctx.stroke();
+  ctx.restore();
+}
+function drawDepthShade(){
+  const sy=surfaceY();
+  const g=ctx.createLinearGradient(0,sy,0,G.bottomY);
+  g.addColorStop(0,'rgba(10,40,60,0)'); g.addColorStop(1,`rgba(8,30,50,${0.18+S.darkness*0.15})`);
+  ctx.fillStyle=g;
+  ctx.beginPath();
+  const N=20;
+  for(let i=0;i<=N;i++){ const fx=i/N; const x=G.poolL+fx*G.poolW;
+    i===0?ctx.moveTo(x,sy+2):ctx.lineTo(x,sy+2); }
+  for(let i=N;i>=0;i--){ const fx=i/N; ctx.lineTo(G.poolL+fx*G.poolW,basinFloorY(fx)); }
+  ctx.closePath(); ctx.fill();
+  // caustic light dancing on the floor
+  if(S.light>0.35&&S.tideLevel>0.3){
+    ctx.strokeStyle=`rgba(255,255,235,${0.10*S.light})`; ctx.lineWidth=1.5;
+    for(let r=0;r<4;r++){ ctx.beginPath();
+      for(let i=0;i<=20;i++){ const fx=0.12+i*0.76/20, x=G.poolL+fx*G.poolW;
+        const y=floorBumpY(fx)-r*G.u*0.8+Math.sin(fx*14+S.animT*2+r*1.7)*2;
+        i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); } ctx.stroke(); }
+  }
+}
+function drawSurfaceFX(){
+  const {poolL,poolR,poolW}=G, sy=surfaceY();
+  // surface line
+  ctx.strokeStyle=`rgba(225,250,255,${0.65+S.light*0.25})`; ctx.lineWidth=2; ctx.lineCap='round';
+  ctx.beginPath();
+  for(let i=0;i<=42;i++){ const fx=i/42, x=poolL+fx*poolW;
+    const y=sy+Math.sin(fx*7+S.animT*1.6)*1.8+Math.sin(fx*13-S.animT*2.3)*1.1;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  ctx.stroke();
+  // foam at the walls
+  ctx.fillStyle='rgba(240,252,255,0.5)';
+  for(let i=0;i<6;i++){
+    ctx.beginPath();
+    ctx.arc(poolL+4+Math.sin(S.animT*2+i)*3,sy+rnd(-1,1)+i%3,1.4,0,TAU);
+    ctx.arc(poolR-4+Math.sin(S.animT*2+i*1.3)*3,sy+i%3,1.4,0,TAU);
+    ctx.fill();
+  }
+  // sunny glints
+  if(S.light>0.5){
+    ctx.strokeStyle=`rgba(255,255,255,${0.5*(S.light-0.4)})`;
+    for(let i=0;i<5;i++){
+      const gx=poolL+((Math.sin(S.animT*0.7+i*2.3)*0.5+0.5)*poolW);
+      ctx.beginPath(); ctx.moveTo(gx-6,sy+1); ctx.lineTo(gx+6,sy+1); ctx.stroke();
+    }
+  }
+  // oil sheen
+  if(S.mods.oil){
+    const os=S.mods.oilStrength||1;
+    for(let i=0;i<5;i++){
+      const ox=poolL+poolW*(0.15+i*0.17)+Math.sin(S.animT*0.5+i*2)*10;
+      ctx.strokeStyle=`hsla(${(S.animT*20+i*60)%360} 70% 65% / ${0.22*os})`;
+      ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.ellipse(ox,sy+1,poolW*0.07,2.2,0,0,TAU); ctx.stroke();
+    }
+  }
+}
+function drawShadeUmbrella(){
+  if(S.shadeT<=0) return;
+  const sy=surfaceY();
+  // cool shadow across the water
+  ctx.fillStyle='rgba(25,45,70,0.15)';
+  ctx.beginPath(); ctx.ellipse(G.poolL+G.poolW*0.4,sy+G.depth*0.2,G.poolW*0.32,G.depth*0.24,0,0,TAU); ctx.fill();
+  // umbrella on the left rim
+  const pop=Math.min(1,(CFG.shadeHours-S.shadeT)*2+0.2);
+  const bx=G.poolL+G.poolW*0.05, by=G.rimY+10, tx=bx+G.u*1.6, ty=by-64*pop;
+  ctx.strokeStyle='#8a6a4a'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(tx,ty); ctx.stroke();
+  const r=52*pop;
+  for(let i=0;i<6;i++){
+    const a0=Math.PI+i*Math.PI/6, a1=a0+Math.PI/6;
+    ctx.beginPath(); ctx.moveTo(tx,ty); ctx.arc(tx,ty,r,a0,a1); ctx.closePath();
+    ctx.fillStyle=i%2?'#ff8a5c':'#ffe9d6'; ctx.fill();
+  }
+  ctx.strokeStyle='rgba(160,80,50,0.5)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(tx,ty,r,Math.PI,0); ctx.stroke();
+}
+function drawBird(){
+  if(!S.bird.active) return;
+  const t=S.bird.t;
+  const x=lerp(-80,view.w+80,t);
+  const y=G.rimY-70+Math.sin(t*Math.PI)*60;
+  const flap=Math.sin(S.animT*14)*0.6;
+  // shadow sweeping over the pool
+  ctx.fillStyle=`rgba(20,35,50,${0.16*Math.sin(t*Math.PI)})`;
+  ctx.beginPath(); ctx.ellipse(x,surfaceY()+G.depth*0.3,40,10,0,0,TAU); ctx.fill();
+  ctx.save(); ctx.translate(x,y);
+  ctx.fillStyle='#2a2f3a';
+  ctx.beginPath(); ctx.ellipse(0,0,14,5.5,0,0,TAU); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(12,-2); ctx.lineTo(20,0); ctx.lineTo(12,2); ctx.closePath(); ctx.fill();
+  ctx.save(); ctx.rotate(flap*0.5);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(-16,-16,-34,-10); ctx.quadraticCurveTo(-18,-2,0,2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.rotate(-flap*0.5);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(16,-16,34,-10); ctx.quadraticCurveTo(18,-2,0,2); ctx.fill(); ctx.restore();
+  ctx.restore();
+}
+
+/* ---- particles ---- */
+function spawnParticle(type,x,y){
+  if(P.length>500) return;
+  const base={type,x,y,life:1,max:1};
+  switch(type){
+    case 'splash': Object.assign(base,{vx:rnd(-25,25),vy:rnd(-70,-15),life:rnd(0.3,0.6)}); base.max=base.life; break;
+    case 'drop':   Object.assign(base,{vy:rnd(160,260),life:1.2}); break;
+    case 'ripple': Object.assign(base,{r:2,life:0.9}); base.max=0.9; break;
+    case 'bubble': Object.assign(base,{r:rnd(1,2.6),vy:rnd(14,26),life:3}); break;
+    case 'poof':   Object.assign(base,{r:3,life:0.8}); base.max=0.8; break;
+    case 'sparkle':Object.assign(base,{life:0.8,rot:rnd(0,3)}); base.max=0.8; break;
+    case 'dust':   Object.assign(base,{vx:rnd(-15,15),vy:rnd(-25,-5),life:rnd(0.4,0.8)}); base.max=base.life; break;
+    case 'rain':   Object.assign(base,{vy:rnd(420,560)}); break;
+  }
+  P.push(base);
+}
+function updateParticles(dt){
+  // rain spawning
+  if(S.rainRate>0.05 && S.started && !S.paused){
+    S.rainAcc+=S.rainRate*110*dt;
+    while(S.rainAcc>1){ S.rainAcc--; if(P.length<480) P.push({type:'rain',x:rnd(-20,view.w+20),y:-10,vy:rnd(420,560),life:3}); }
+  }
+  // occasional bubbles from the pool floor
+  if(S.started && !S.paused && chance(dt*1.5) && S.tideLevel>0.4)
+    spawnParticle('bubble',G.poolL+rnd(0.1,0.9)*G.poolW,floorBumpY(0.5)-rnd(0,G.depth*0.2));
+  const sy=surfaceY();
+  for(let i=P.length-1;i>=0;i--){
+    const p=P[i]; p.life-=dt;
+    let dead=p.life<=0;
+    switch(p.type){
+      case 'rain':{
+        const slant=(S.weather==='storm'?60:15);
+        p.y+=p.vy*dt; p.x+=slant*dt;
+        const inPool=p.x>G.poolL&&p.x<G.poolR;
+        const hitY=inPool?sy:G.shelfY+4;
+        if(p.y>=hitY){ dead=true;
+          if(inPool){ if(chance(0.25)) spawnParticle('ripple',p.x,sy); }
+          else if(chance(0.3)) spawnParticle('splash',p.x,hitY);
+        }
+        break; }
+      case 'splash': p.vy+=320*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; break;
+      case 'drop': p.y+=p.vy*dt; if(p.y>=sy){ dead=true; spawnParticle('ripple',p.x,sy); } break;
+      case 'ripple': p.r+=34*dt; break;
+      case 'bubble': p.y-=p.vy*dt; p.x+=Math.sin(S.animT*4+p.r*9)*8*dt; if(p.y<surfaceY()+2) dead=true; break;
+      case 'poof': p.r+=20*dt; p.y-=12*dt; break;
+      case 'dust': p.vy+=120*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; break;
+    }
+    if(dead){ P[i]=P[P.length-1]; P.pop(); }
+  }
+}
+function drawParticles(){
+  const sy=surfaceY();
+  for(const p of P){
+    const a=clamp(p.life/(p.max||1),0,1);
+    switch(p.type){
+      case 'rain':
+        ctx.strokeStyle='rgba(200,222,240,0.45)'; ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.moveTo(p.x,p.y);
+        ctx.lineTo(p.x-(S.weather==='storm'?5:1.5),p.y+11); ctx.stroke(); break;
+      case 'splash':
+        ctx.strokeStyle=`rgba(235,250,255,${a})`; ctx.lineWidth=1.4;
+        ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*0.03,p.y-p.vy*0.03); ctx.stroke(); break;
+      case 'drop':
+        ctx.strokeStyle=`rgba(190,235,255,${0.8*a})`; ctx.lineWidth=1.6;
+        ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x,p.y+7); ctx.stroke(); break;
+      case 'ripple':
+        ctx.strokeStyle=`rgba(230,250,255,${0.6*a})`; ctx.lineWidth=1.3;
+        ctx.beginPath(); ctx.ellipse(p.x,sy+1,p.r,p.r*0.26,0,0,TAU); ctx.stroke(); break;
+      case 'bubble':
+        ctx.strokeStyle=`rgba(220,245,255,${0.6})`; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,TAU); ctx.stroke(); break;
+      case 'poof':
+        ctx.fillStyle=`rgba(140,150,125,${0.5*a})`;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,TAU); ctx.fill(); break;
+      case 'sparkle':
+        ctx.strokeStyle=`rgba(255,240,180,${a})`; ctx.lineWidth=1.6;
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot+S.animT*3);
+        ctx.beginPath(); ctx.moveTo(-5,0); ctx.lineTo(5,0); ctx.moveTo(0,-5); ctx.lineTo(0,5); ctx.stroke();
+        ctx.restore(); break;
+      case 'dust':
+        ctx.fillStyle=`rgba(150,120,85,${0.5*a})`;
+        ctx.beginPath(); ctx.arc(p.x,p.y,3.5*a+1,0,TAU); ctx.fill(); break;
+    }
+  }
+}
+
+/* ==================== 10. UI ==================== */
+const svgI=(inner)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+const ICONS={
+  sun:svgI('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  moon:svgI('<path d="M20 13A8 8 0 1 1 11 4a6.5 6.5 0 0 0 9 9z"/>'),
+  cloud:svgI('<path d="M17.5 18a4.5 4.5 0 0 0 .4-9A6 6 0 0 0 6.2 10.5 3.8 3.8 0 0 0 7 18z"/>'),
+  rain:svgI('<path d="M17.5 14a4.5 4.5 0 0 0 .4-9A6 6 0 0 0 6.2 6.5 3.8 3.8 0 0 0 7 14z"/><path d="M8 17v3M12 17v3M16 17v3"/>'),
+  bolt:svgI('<path d="M13 2 4.5 13.5H11L9.5 22 19 9.5h-6.5z"/>'),
+  umbrella:svgI('<path d="M12 3a8 8 0 0 1 8 8H4a8 8 0 0 1 8-8z"/><path d="M12 3v-1M12 11v7a2 2 0 0 0 4 0"/>'),
+  drop:svgI('<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>'),
+  rock:svgI('<path d="M4 16 7 8l6-3 6 5 1 6-5 4H8z"/><path d="M7 8l4 4M13 5l-2 7"/>'),
+  weed:svgI('<path d="M8 21c0-6-3-8-3-12 3 1 4 3 4 6 0-4 2-8 5-10 1 4-1 6-1 9 2-2 4-3 6-3-1 5-4 6-5 10z"/>'),
+  net:svgI('<circle cx="9" cy="9" r="6"/><path d="M9 3v12M3 9h12M13.5 13.5 20 20"/>'),
+  thermo:svgI('<path d="M10 13.6V5a2 2 0 1 1 4 0v8.6a4.5 4.5 0 1 1-4 0z"/><path d="M12 9v5"/>'),
+  bubbles:svgI('<circle cx="8" cy="14" r="3.5"/><circle cx="15.5" cy="8.5" r="2.8"/><circle cx="17" cy="16" r="2"/>'),
+  blob:svgI('<path d="M12 4c4 0 8 3 8 8s-4 8-8 8-8-3-8-8 4-8 8-8z"/><circle cx="9.5" cy="10.5" r="0.6"/><circle cx="14.5" cy="13.5" r="0.6"/>'),
+  dots:svgI('<circle cx="6" cy="7" r="1.6"/><circle cx="16" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="14" r="1.2"/><circle cx="7" cy="17" r="1.2"/>'),
+  snail:svgI('<circle cx="11" cy="12" r="5.5"/><path d="M11 12a2.4 2.4 0 1 1-2.4-2.4M16 15.5c2.5 0 4-1 4-3M18 8.5V6M20 9V6.5"/>'),
+  crab:svgI('<circle cx="9" cy="13" r="4"/><path d="M5 10 3 7M13 10l2-3M5 16l-2 2M13 16l2 2M16 13h5M18 9l3-2"/>'),
+  fishIcon:svgI('<path d="M3 12s3.5-5 8-5c5 0 8 5 8 5s-3 5-8 5c-4.5 0-8-5-8-5z"/><path d="M19 12l3-3v6z"/><circle cx="7.5" cy="11" r="0.6"/>'),
+  anemone:svgI('<path d="M12 21v-6"/><path d="M12 15C8 13 6 9 6 5M12 15c0-4-1-8-3-11M12 15c2-1 3-5 3-10M12 15c4-2 6-6 6-10M12 15c-3 0-6-2-8-5M12 15c3 0 6-2 8-5"/>'),
+  waves:svgI('<path d="M2 8c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2M2 15c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2"/>'),
+  up:svgI('<path d="M12 19V5M6 11l6-6 6 6"/>'),
+  down:svgI('<path d="M12 5v14M6 13l6 6 6-6"/>'),
+  flat:svgI('<path d="M4 12h16"/>'),
+  pause:svgI('<path d="M9 5v14M15 5v14"/>'),
+  play:svgI('<path d="M7 4l13 8-13 8z"/>'),
+  sound:svgI('<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>'),
+  soundOff:svgI('<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9l6 6M22 9l-6 6"/>'),
+  bird:svgI('<path d="M3 13c3-4 7-4 9-1 2-3 6-3 9 1-3-1-5 0-6 2l-3 4-3-4c-1-2-3-3-6-2z"/>'),
+  oil:svgI('<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/><path d="M9 14a3 3 0 0 0 3 3"/>'),
+  sparkle:svgI('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'),
+  upwell:svgI('<path d="M12 16V6M8 10l4-4 4 4"/><path d="M2 19c2.5 0 2.5 2 5 2s2.5-2 5-2 2.5 2 5 2 2.5-2 5-2"/>'),
+  heart:svgI('<path d="M12 20s-7-4.5-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.5-9 9-9 9z"/>'),
+};
+const STATS_DEF=[
+  {key:'temp',label:'Temp',icon:'thermo',color:'#ff9a52',min:10,max:40,h0:18,h1:28,get:()=>S.temp,fmt:v=>Math.round(v)+'°C'},
+  {key:'sal',label:'Salinity',icon:'drop',color:'#3fa7c9',min:25,max:80,h0:45,h1:65,get:()=>S.sal,fmt:v=>Math.round(v)+' ppt'},
+  {key:'oxy',label:'Oxygen',icon:'bubbles',color:'#37c8c3',min:0,max:100,h0:50,h1:90,get:()=>S.oxy,fmt:v=>Math.round(v)+'%'},
+  {key:'algae',label:'Algae',icon:'blob',color:'#6fbf5a',min:0,max:100,h0:10,h1:55,get:()=>S.algae,fmt:v=>Math.round(v)+'%'},
+];
+const SPECIES_META={
+  plankton:{name:'Plankton',plural:'plankton cloud',icon:'dots',color:'#4fb8ae',count:()=>Math.round(S.plankton),
+    stress:()=>S.plankton>15?0:0.8},
+  snail:{name:'Snails',plural:'snails',icon:'snail',color:'#c98f4e',count:()=>S.snails.length,
+    stress:()=>avgStress(S.snails)},
+  crab:{name:'Hermit crabs',plural:'hermit crabs',icon:'crab',color:'#e2694f',count:()=>S.crabs.length,
+    stress:()=>avgStress(S.crabs)},
+  anemone:{name:'Anemones',plural:'anemones',icon:'anemone',color:'#e07fa5',count:()=>S.anemones.length,
+    stress:()=>avgStress(S.anemones)},
+  fish:{name:'Small fish',plural:'small fish',icon:'fishIcon',color:'#f4b942',count:()=>S.fish.length,
+    stress:()=>avgStress(S.fish)},
+};
+function avgStress(list){ if(!list.length) return 0; let s=0; for(const c of list)s+=c.stress; return s/list.length; }
+function snapshotPops(){
+  S.popsPrev={plankton:Math.round(S.plankton),snail:S.snails.length,crab:S.crabs.length,anemone:S.anemones.length,fish:S.fish.length};
+}
+const el={};
+function buildUI(){
+  ['dayChip','clockIcon','clockText','wxIcon','wxText','tideIcon','tideText','balIcon','balanceFill','balanceVal',
+   'muteBtn','pauseBtn','statsPanel','lifePanel','spList','log','energyFill','energyVal','energyIcon','nudges',
+   'overlay','card','statsToggle','lifeToggle'].forEach(id=>el[id]=document.getElementById(id));
+  el.balIcon.innerHTML=ICONS.heart; el.energyIcon.innerHTML=ICONS.bolt;
+  el.muteBtn.innerHTML=ICONS.sound; el.pauseBtn.innerHTML=ICONS.pause;
+  // stat rows
+  for(const d of STATS_DEF){
+    const row=document.createElement('div'); row.className='stat'; row.id='stat-'+d.key;
+    const l0=((d.h0-d.min)/(d.max-d.min)*100).toFixed(1), lw=((d.h1-d.h0)/(d.max-d.min)*100).toFixed(1);
+    row.innerHTML=`<div class="stat-head"><span class="icon">${ICONS[d.icon]}</span><span>${d.label}</span><span class="stat-val"></span></div>
+      <div class="bar"><i class="range" style="left:${l0}%;width:${lw}%"></i><i class="fill" style="background:${d.color}"></i></div>`;
+    el.statsPanel.appendChild(row);
+    d.elVal=row.querySelector('.stat-val'); d.elFill=row.querySelector('.fill'); d.elRow=row;
+  }
+  // species rows
+  for(const key in SPECIES_META){
+    const m=SPECIES_META[key];
+    const row=document.createElement('div'); row.className='sp'; row.id='sp-'+key;
+    row.innerHTML=`<span class="icon" style="color:${m.color}">${ICONS[m.icon]}</span>
+      <span class="sp-name">${m.name}</span><span class="trend flat">${ICONS.flat}</span>
+      <b class="sp-count"></b><i class="dot"></i>`;
+    if(key!=='plankton') row.addEventListener('click',()=>{
+      S.cullTarget=S.cullTarget===key?null:key;
+      document.querySelectorAll('.sp').forEach(r=>r.classList.remove('sel'));
+      if(S.cullTarget) row.classList.add('sel');
+      AudioSys.blip(600,0.06,'sine',0.04);
+    });
+    el.spList.appendChild(row);
+    m.elCount=row.querySelector('.sp-count'); m.elTrend=row.querySelector('.trend'); m.elDot=row.querySelector('.dot');
+  }
+  // nudge buttons
+  for(const def of NUDGES){
+    const b=document.createElement('button'); b.className='nudge'; b.id='nudge-'+def.key; b.title=def.title;
+    b.innerHTML=`<i class="cd"></i><span class="icon">${ICONS[def.icon]}</span>
+      <span class="n-name">${def.name}</span>
+      <span class="n-cost"><span class="icon">${ICONS.bolt}</span>${def.cost}</span>
+      <span class="n-cd"></span>`;
+    b.addEventListener('click',()=>tryNudge(def));
+    el.nudges.appendChild(b);
+    def.el=b; def.elCd=b.querySelector('.cd'); def.elCdTxt=b.querySelector('.n-cd');
+  }
+  // top buttons & toggles
+  el.muteBtn.addEventListener('click',()=>{
+    AudioSys.start(); AudioSys.setMuted(!AudioSys.muted);
+    el.muteBtn.innerHTML=AudioSys.muted?ICONS.soundOff:ICONS.sound;
+  });
+  el.pauseBtn.addEventListener('click',()=>{
+    if(S.cardOpen||S.over||!S.started) return;
+    showCard({icon:'pause',title:'Paused',body:'<p>The pool waits patiently.</p>',
+      buttons:[{label:'Resume',primary:true,cb:hideCard},{label:'Restart',cb:()=>location.reload()}]});
+  });
+  el.statsToggle.addEventListener('click',()=>{ el.lifePanel.classList.remove('open'); el.statsPanel.classList.toggle('open'); });
+  el.lifeToggle.addEventListener('click',()=>{ el.statsPanel.classList.remove('open'); el.lifePanel.classList.toggle('open'); });
+  document.addEventListener('keydown',e=>{
+    if(e.code==='Space'){ e.preventDefault(); el.pauseBtn.click(); }
+    if(e.code==='KeyM') el.muteBtn.click();
+  });
+}
+function updateUI(){
+  el.dayChip.textContent=`Day ${Math.min(S.day,CFG.totalDays)}/${CFG.totalDays}`;
+  const hh=Math.floor(S.hour), mm=Math.floor((S.hour-hh)*60);
+  el.clockText.textContent=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  el.clockIcon.innerHTML=(S.hour>6.3&&S.hour<17.7)?ICONS.sun:ICONS.moon;
+  const wi=WEATHER_INFO[S.weather];
+  el.wxIcon.innerHTML=ICONS[wi.icon]; el.wxText.textContent=wi.label;
+  const tt=S.tideLevel>0.93?'High tide':S.tideLevel<S.lowTideEff+0.04?'Low tide':(S.tideDir>0?'Rising':'Falling');
+  el.tideIcon.innerHTML=ICONS.waves; el.tideText.textContent=tt;
+  // balance
+  el.balanceFill.style.width=S.balance+'%';
+  el.balanceFill.style.background=`hsl(${Math.round(S.balance*1.15)} 65% 42%)`;
+  el.balanceVal.textContent=S.balance;
+  // stats
+  for(const d of STATS_DEF){
+    const v=d.get();
+    d.elFill.style.width=clamp((v-d.min)/(d.max-d.min)*100,0,100)+'%';
+    d.elVal.textContent=d.fmt(v);
+    d.elRow.classList.toggle('warn', v<d.h0||v>d.h1);
+  }
+  // species
+  for(const key in SPECIES_META){
+    const m=SPECIES_META[key], n=m.count();
+    m.elCount.textContent=n;
+    const prev=S.popsPrev[key];
+    let cls='flat', ic=ICONS.flat;
+    if(prev!==undefined){ if(n>prev){cls='up';ic=ICONS.up;} else if(n<prev){cls='down';ic=ICONS.down;} }
+    m.elTrend.className='trend '+cls; m.elTrend.innerHTML=ic;
+    const st=m.stress(), gone=n===0&&key!=='plankton'||key==='plankton'&&S.plankton<5;
+    m.elDot.className='dot '+(gone?'red':st>0.7?'red':st>0.3?'amber':'');
+  }
+  // energy
+  el.energyFill.style.width=(S.energy/CFG.energyMax*100)+'%';
+  el.energyVal.textContent=Math.floor(S.energy);
+}
+function updateNudgeVisuals(){
+  for(const def of NUDGES){
+    const cd=S.cds[def.key], frac=cd/def.cd;
+    def.elCd.style.transform=`scaleY(${clamp(frac,0,1)})`;
+    def.elCdTxt.textContent=cd>0?Math.ceil(cd)+'s':'';
+    const blocked=(def.can&&!def.can())||S.energy<def.cost;
+    def.el.classList.toggle('cooling',cd>0);
+    def.el.classList.toggle('disabled',cd>0||blocked);
+  }
+}
+function addLog(text){
+  const div=document.createElement('div'); div.className='msg'; div.textContent=text;
+  el.log.prepend(div);
+  while(el.log.children.length>3) el.log.removeChild(el.log.lastChild);
+  setTimeout(()=>{ div.classList.add('fade'); setTimeout(()=>div.remove(),900); },5200);
+}
+function showCard(opts){
+  S.cardOpen=true; S.paused=true;
+  el.card.innerHTML=`<span class="card-icon">${ICONS[opts.icon]||ICONS.sparkle}</span>
+    <h1>${opts.title}</h1><div>${opts.body}</div>
+    <div>${opts.buttons.map((b,i)=>`<button class="btn ${b.primary?'primary':'ghost'}" data-i="${i}">${b.label}</button>`).join('')}</div>`;
+  el.card.querySelectorAll('.btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{ const b=opts.buttons[+btn.dataset.i]; b.cb&&b.cb(); });
+  });
+  el.overlay.classList.add('show');
+  AudioSys.blip(440,0.1,'sine',0.05);
+}
+function hideCard(){
+  el.overlay.classList.remove('show');
+  S.cardOpen=false;
+  if(!S.over) S.paused=false;
+}
+function showTutorial(){
+  showCard({
+    icon:'waves', title:'Tidepool Keeper',
+    body:`<p>A tiny world of snails, crabs, anemones and fish lives in this pool. Tides rise, weather turns, and life feeds on life — all on its own.</p>
+      <div class="rule-box">One rule: you cannot control the creatures.<br>You can only nudge the conditions.</div>
+      <div class="mini-list">
+        <div><span class="icon">${ICONS.thermo}</span><span>Watch the four water stats — each species has its own comfort zone.</span></div>
+        <div><span class="icon">${ICONS.umbrella}</span><span>Spend energy on nudges: shade, fresh water, rocks, seaweed, culling.</span></div>
+        <div><span class="icon">${ICONS.waves}</span><span>High tide brings plankton and visitors. Low tide brings danger.</span></div>
+        <div><span class="icon">${ICONS.heart}</span><span>Keep at least 3 species alive for ${CFG.totalDays} days.</span></div>
+      </div>`,
+    buttons:[{label:'Begin tending',primary:true,cb:()=>{
+      AudioSys.start(); S.started=true; hideCard();
+      addLog('Day 1 — the pool awaits your care.');
+      snapshotPops();
+    }}]
+  });
+}
+
+/* ==================== 11. MAIN LOOP (fixed timestep) ==================== */
+let lastT=performance.now(), acc=0, uiAcc=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt=(now-lastT)/1000; lastT=now;
+  if(dt>0.25) dt=0.25;
+  S.animT+=dt;
+  // clouds always drift
+  for(const cl of clouds){ cl.x+=(0.004+S.cloud*0.012)*(S.weather==='storm'?3:1)*dt; if(cl.x>1.2)cl.x=-0.2; }
+  updateParticles(dt);
+  if(S.started&&!S.paused&&!S.over){
+    acc+=dt;
+    while(acc>=CFG.simDt){
+      step(CFG.simDt); acc-=CFG.simDt;
+      if(S.over){ acc=0; break; }
+    }
+  }
+  AudioSys.update();
+  render();
+  updateNudgeVisuals();
+  uiAcc+=dt; if(uiAcc>0.12){ uiAcc=0; updateUI(); }
+}
+
+/* ==================== 12. INIT ==================== */
+function initDeco(){
+  const rng=mulberry32(1337);
+  starsArr=[]; for(let i=0;i<70;i++) starsArr.push({x:rng(),y:rng()*0.9,r:0.6+rng()*1.3,ph:rng()*TAU});
+  clouds=[]; for(let i=0;i<5;i++) clouds.push({x:rng(),y:0.05+rng()*0.16,s:2.6+rng()*2.4});
+  speckles=[]; pebbles=[];
+  const regen=()=>{
+    speckles=[]; for(let i=0;i<80;i++) speckles.push({x:rng()*view.w,y:G.shelfY+10+rng()*(view.h-G.shelfY-14),r:0.7+rng()*1.6,dark:rng()<0.5});
+    pebbles=[]; for(let i=0;i<12;i++) pebbles.push({x:rng()*view.w,y:G.shelfY+8+rng()*30,r:2+rng()*3.5,rot:rng()*3,c:['#9a8a76','#857662','#a89a84'][Math.floor(rng()*3)]});
+  };
+  regen(); regen._isGen=true;
+  window.__regenSpeckles=regen;
+  plankDots=[]; for(let i=0;i<40;i++) plankDots.push({fx:rng(),fh:0.05+rng()*0.8,r:1+rng()*1.6,ph:rng()*TAU});
+}
+function init(){
+  resize();
+  window.addEventListener('resize',()=>{ resize(); if(window.__regenSpeckles) window.__regenSpeckles(); });
+  initDeco();
+  buildUI();
+  // starting community
+  spawnSnail(0.2); spawnSnail(0.45); spawnSnail(0.7); spawnSnail(0.85);
+  spawnCrab(0.35); spawnCrab(0.65);
+  spawnAnemone(0.25); spawnAnemone(0.55); spawnAnemone(0.8);
+  recomputeShelter(); snapshotPops(); updateUI();
+  document.addEventListener('pointerdown',()=>AudioSys.start(),{once:true});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden&&S.started&&!S.paused&&!S.over&&!S.cardOpen) el.pauseBtn.click();
+  });
+  showTutorial();
+  requestAnimationFrame(frame);
+}
+init();
+</script>
+</body>
+</html>
